@@ -2,6 +2,16 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { Printer, Search, User, Mail } from 'lucide-react';
 
+// Status color mapping for consistent UI
+const STATUS_THEMES = {
+  CLAIMED: 'bg-emerald-50 text-emerald-600 border-emerald-100',
+  COMPLETED: 'bg-emerald-50 text-emerald-600 border-emerald-100',
+  RELEASED: 'bg-emerald-50 text-emerald-600 border-emerald-100',
+  READY: 'bg-blue-50 text-blue-600 border-blue-100',
+  AWAITING_VERIFICATION: 'bg-amber-50 text-amber-600 border-amber-100',
+  PENDING: 'bg-slate-50 text-slate-500 border-slate-100',
+};
+
 export default function AdminOrders({ isStudentView = false }) {
   const { orders, printReceipt, user, api } = useApp();
   const [searchTerm, setSearchTerm] = useState("");
@@ -35,12 +45,11 @@ export default function AdminOrders({ isStudentView = false }) {
       const status = String(o.status || "").toUpperCase().trim();
       const isFinished = ['CLAIMED', 'RELEASED', 'COMPLETED', 'DELIVERED'].includes(status);
 
-      // Filter logic: Admin sees all (or filtered by search), Student sees only their finished
+      // Filter logic: Admin sees all, Student sees only their finished
       const isVisible = isStudentView ? isFinished : true;
       const isOwner = isStudentView ? String(o.user_id) === String(user?.id) : true;
 
       const searchLower = searchTerm.toLowerCase();
-      // Expanded search to include Name and Email
       const nameMatch = String(o.item_name || "").toLowerCase().includes(searchLower);
       const studentNameMatch = String(o.full_name || "").toLowerCase().includes(searchLower);
       const emailMatch = String(o.email || "").toLowerCase().includes(searchLower);
@@ -121,7 +130,6 @@ export default function AdminOrders({ isStudentView = false }) {
                       <div className="flex flex-col">
                         <span className="text-sm font-black text-slate-800 flex items-center gap-1 group-hover:text-emerald-600 transition-colors">
                           <User size={12} className="text-emerald-500" />
-                          {/* Identifiable name for Admin verification */}
                           {order.full_name || "Guest Student"}
                         </span>
                         <span className="text-[10px] text-slate-400 font-bold flex items-center gap-1">
@@ -139,10 +147,9 @@ export default function AdminOrders({ isStudentView = false }) {
                   </td>
 
                   <td className="px-6 py-4">
-                    <span className={`px-2 py-1 text-[9px] font-black rounded-full border uppercase ${['CLAIMED', 'COMPLETED'].includes(order.status)
-                        ? 'bg-emerald-50 text-emerald-600 border-emerald-100'
-                        : 'bg-slate-50 text-slate-500 border-slate-100'
-                      }`}>
+                    <span className={`px-2 py-1 text-[9px] font-black rounded-full border uppercase ${
+                      STATUS_THEMES[order.status?.toUpperCase()] || STATUS_THEMES.PENDING
+                    }`}>
                       {order.status}
                     </span>
                   </td>

@@ -39,9 +39,14 @@ export default function AdminDashboard({ setActiveTab }) {
 
   const lowStockCount = items?.filter(i => Number(i.is_low_stock) === 1).length || 0;
 
-  const totalUnits = items?.reduce((acc, item) => {
-    return acc + (item.sizes ? Object.values(item.sizes).reduce((a, b) => a + (Number(b) || 0), 0) : 0);
-  }, 0) || 0;
+  // Optimized unit calculation with safety checks
+  const totalUnits = useMemo(() => {
+    return items?.reduce((acc, item) => {
+      const sizesObj = (item.sizes && typeof item.sizes === 'object') ? item.sizes : {};
+      const itemTotal = Object.values(sizesObj).reduce((a, b) => a + (Number(b) || 0), 0);
+      return acc + itemTotal;
+    }, 0) || 0;
+  }, [items]);
 
   const statsCards = [
     { label: 'To Verify', value: ordersToVerify.length, icon: AlertTriangle, color: 'bg-amber-500', tab: 'orders' },
@@ -88,7 +93,7 @@ export default function AdminDashboard({ setActiveTab }) {
         </div>
       </div>
 
-      {/* PERFORMANCE METRICS - CSV BUTTON REMOVED */}
+      {/* PERFORMANCE METRICS */}
       <section className="bg-white border border-slate-100 rounded-[3.5rem] p-8 md:p-10 shadow-sm no-print">
         <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
           <h3 className="text-2xl font-black text-slate-900 flex items-center gap-3 uppercase tracking-tighter">
@@ -122,9 +127,16 @@ export default function AdminDashboard({ setActiveTab }) {
                 <div className="space-y-4">
                   <div className="bg-white border border-slate-200 p-4 rounded-2xl">
                     <p className="text-[8px] font-black text-slate-400 uppercase mb-1 tracking-widest">Reference No.</p>
-                    <span className="text-xs font-mono font-bold text-emerald-700 truncate block">
-                      {order.receipt_url || "N/A - MANUAL"}
-                    </span>
+                    {/* Render as link if it looks like a URL, otherwise text */}
+                    {order.receipt_url?.startsWith('http') ? (
+                      <a href={order.receipt_url} target="_blank" rel="noreferrer" className="text-xs font-mono font-bold text-blue-600 hover:underline truncate block">
+                        View Attachment ↗
+                      </a>
+                    ) : (
+                      <span className="text-xs font-mono font-bold text-emerald-700 truncate block">
+                        {order.receipt_url || "N/A - MANUAL"}
+                      </span>
+                    )}
                   </div>
                   <button
                     onClick={() => updateOrderStatusBulk([order.id], 'READY')}

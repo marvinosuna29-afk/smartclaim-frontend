@@ -104,28 +104,27 @@ export const AppProvider = ({ children }) => {
   }, [orders]);
 
   const api = async (url, method = 'GET', body = null) => {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), 15000); // 15s timeout
+
     try {
       const options = {
         method,
         headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal, // Connect the abort signal
       };
       if (body) options.body = JSON.stringify(body);
 
-      // 🛡️ THE FIX: Prepend API_BASE_URL to every request
       const fullUrl = url.startsWith('http') ? url : `${API_BASE_URL}${url}`;
-
       const response = await fetch(fullUrl, options);
-      const data = await response.json();
+      clearTimeout(id); // Clear timeout on success
 
-      return {
-        ok: response.ok,
-        data,
-        status: response.status
-      };
+      const data = await response.json();
+      return { ok: response.ok, data, status: response.status };
     } catch (err) {
-      // This catches the "Network Error" if the backend is offline
+      clearTimeout(id);
       console.error("API Error:", err);
-      return { ok: false, data: { message: "Server is offline. Check backend terminal." } };
+      return { ok: false, data: { message: "Request timed out or server offline." } };
     }
   };
 

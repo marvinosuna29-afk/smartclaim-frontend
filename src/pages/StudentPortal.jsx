@@ -209,8 +209,8 @@ export default function StudentPortal({ needsVerification, activeTab, myOrders: 
           <div className="space-y-6">
 
             {/* 1. READY BANNER LOGIC */}
-            {loading && orders.length === 0 ? (
-              /* A: SYNCING STATE - Holds the spot during refresh so the UI doesn't "jump" or revert */
+            {loading && contextOrders.length === 0 ? ( // ✅ Changed from orders.length
+              /* A: SYNCING STATE */
               <div className="h-48 w-full bg-slate-50 rounded-[3rem] border border-dashed border-slate-200 animate-pulse flex items-center justify-center">
                 <div className="flex items-center gap-3">
                   <Loader2 className="animate-spin text-slate-300" size={20} />

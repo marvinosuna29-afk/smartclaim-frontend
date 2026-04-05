@@ -311,7 +311,9 @@ export const AppProvider = ({ children }) => {
 
           const newSizes = { ...item.sizes };
           claimedForThisItem.forEach(o => {
-            const sizeKey = Object.keys(newSizes).find(k => k.toLowerCase() === String(o.size).toLowerCase());
+            const sizeKey = Object.keys(newSizes).find(k =>
+              o.size && k.toLowerCase() === String(o.size).toLowerCase()
+            );
             if (sizeKey && newSizes[sizeKey] > 0) newSizes[sizeKey] -= 1;
           });
           return { ...item, sizes: newSizes };

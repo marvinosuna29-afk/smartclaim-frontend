@@ -17,7 +17,8 @@ export default function StudentPortal({ needsVerification, activeTab, myOrders: 
     addOrder,
     officeStatus = "OPEN",
     announcements = [],
-    submitReceipt
+    submitReceipt,
+    loading
   } = useApp();
 
   const [selectedSizes, setSelectedSizes] = useState({});

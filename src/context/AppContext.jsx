@@ -33,11 +33,23 @@ export const AppProvider = ({ children }) => {
   });
 
   const readyOrders = useMemo(() => {
-    const currentUserId = String(user?.id || user?.user_id || "");
-    return orders.filter(o =>
-      String(o.user_id || o.userId) === currentUserId &&
-      String(o.status).toUpperCase() === 'READY'
-    );
+    // 1. Extract IDs into strings once to avoid deep-object comparisons
+    const currentUserId = String(user?.user_id || user?.id || "");
+
+    // 2. Immediate exit if no user is logged in
+    if (!currentUserId) return [];
+
+    // 3. Perform the filter
+    return orders.filter(o => {
+      const oUserId = String(o.user_id || o.userId || "");
+      const oStatus = String(o.status || "").toUpperCase().trim();
+
+      return oUserId === currentUserId && oStatus === 'READY';
+    });
+
+    // 🛡️ CRITICAL FIX: Only watch the specific ID strings. 
+    // If you watch the whole 'user' object, and 'setUser' is called elsewhere, 
+    // this memo will fire, potentially triggering a re-render loop.
   }, [orders, user?.id, user?.user_id]);
 
   useEffect(() => {
@@ -54,6 +66,11 @@ export const AppProvider = ({ children }) => {
   useEffect(() => {
     localStorage.setItem('app_orders', JSON.stringify(orders));
   }, [orders]);
+  useEffect(() => {
+    if (currentServingId !== null && currentServingId !== undefined) {
+      localStorage.setItem('app_serving_id', String(currentServingId));
+    }
+  }, [currentServingId]);
 
   // --- HELPERS ---
   const setUser = (userData) => {
@@ -170,16 +187,8 @@ export const AppProvider = ({ children }) => {
     const events = {
       office_status_updated: setOfficeStatus,
       queue_updated: (data) => {
-        // Ensure we are dealing with a clean string/number
         const nextNumber = String(data.currentNumber || data.nextId || "0");
-
-        setCurrentServingId(prev => {
-          // 🛡️ Only update if the number is actually different
-          if (prev === nextNumber) return prev;
-
-          localStorage.setItem('app_serving_id', nextNumber);
-          return nextNumber;
-        });
+        setCurrentServingId(prev => (prev !== nextNumber ? nextNumber : prev));
       },
       order_created: (newOrder) => {
         setOrders(prev => {

@@ -27,40 +27,43 @@ export default function AdminDashboard({ setActiveTab }) {
   };
 
   // --- DATA FILTERING & QUEUE LOGIC ---
-  const ordersToVerify = useMemo(() =>
-    orders?.filter(o => {
-      const status = String(o.status || "").toUpperCase();
-      // Ensure we catch both naming conventions
-      return status === 'AWAITING_VERIFICATION' || status === 'VERIFYING';
-    }) || [],
-    [orders]);
+  const ordersToVerify = useMemo(() => {
+    if (!orders) return [];
+    return orders.filter(o => {
+      const s = String(o.status || "").toUpperCase();
+      return s === 'AWAITING_VERIFICATION' || s === 'VERIFYING';
+    });
+    // 🛡️ Watch length to keep it stable
+  }, [orders.length]);
 
-  const activePickupQueue = useMemo(() =>
-    orders?.filter(o => String(o.status || "").toUpperCase() === 'READY') || [],
-    [orders]);
+  const activePickupQueue = useMemo(() => {
+    if (!orders) return [];
+    return orders.filter(o => String(o.status || "").toUpperCase() === 'READY');
+  }, [orders.length]);
 
-  const displayQueue = activePickupQueue.length;
+  // Use a memo for the display number so it doesn't flicker
+  const displayQueue = useMemo(() => activePickupQueue.length, [activePickupQueue.length]);
 
   const lowStockCount = useMemo(() => {
     if (!items || !Array.isArray(items)) return 0;
     return items.filter(i => i && Number(i.is_low_stock) === 1).length;
-  }, [items]);
+  }, [items.length]); // 🛡️ Only re-run if the number of items changes
 
-  // Optimized unit calculation with safety checks
   const totalUnits = useMemo(() => {
-    return items?.reduce((acc, item) => {
+    if (!items) return 0;
+    return items.reduce((acc, item) => {
       const sizesObj = (item.sizes && typeof item.sizes === 'object') ? item.sizes : {};
       const itemTotal = Object.values(sizesObj).reduce((a, b) => a + (Number(b) || 0), 0);
       return acc + itemTotal;
-    }, 0) || 0;
-  }, [items]);
+    }, 0);
+  }, [items.length]);
 
-  const statsCards = [
+  const statsCards = useMemo(() => [
     { label: 'To Verify', value: ordersToVerify.length, icon: AlertTriangle, color: 'bg-amber-500', tab: 'orders' },
     { label: 'Ready for Pickup', value: activePickupQueue.length, icon: Clock, color: 'bg-blue-500', tab: 'scanner' },
     { label: 'Low Stock', value: lowStockCount, icon: Info, color: 'bg-red-500', tab: 'inventory' },
     { label: 'Total Units', value: totalUnits, icon: Package, color: 'bg-emerald-500', tab: 'inventory' },
-  ];
+  ], [ordersToVerify.length, activePickupQueue.length, lowStockCount, totalUnits]);
 
   return (
     <div className="space-y-10 pb-12 text-left animate-in fade-in duration-700">

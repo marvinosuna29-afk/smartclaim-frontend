@@ -42,12 +42,15 @@ export const AppProvider = ({ children }) => {
 
   const readyOrders = useMemo(() => {
     const currentUserId = String(user?.id || user?.user_id || "");
-    if (!currentUserId) return [];
-    return orders.filter(o =>
-      String(o.user_id || o.userId) === currentUserId &&
-      String(o.status).toUpperCase() === 'READY'
-    );
-  }, [orders.length, user?.id]);
+    // Always return a filtered array, even if empty, to keep the return type stable
+    if (!currentUserId || !orders.length) return [];
+
+    return orders.filter(o => {
+      const orderUserId = String(o.user_id || o.userId || "");
+      const status = String(o.status || "").toUpperCase();
+      return orderUserId === currentUserId && status === 'READY';
+    });
+  }, [orders, user?.id]); // Watch 'orders' directly, not just length
 
   useEffect(() => {
     localStorage.setItem('app_orders', JSON.stringify(orders));
@@ -179,10 +182,10 @@ export const AppProvider = ({ children }) => {
   }, [user?.id, user?.role, normalizeUser]);
 
   useEffect(() => {
-    if (user?.id) {
+    if (user?.id && items.length === 0) { // Only fetch if we don't have items yet
       refreshData();
     }
-  }, [user?.id]);
+  }, [user?.id, items.length]);
 
   // --- SOCKET LISTENERS ---
   useEffect(() => {

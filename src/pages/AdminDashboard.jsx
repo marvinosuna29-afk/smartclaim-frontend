@@ -41,7 +41,10 @@ export default function AdminDashboard({ setActiveTab }) {
 
   const displayQueue = activePickupQueue.length;
 
-  const lowStockCount = items?.filter(i => Number(i.is_low_stock) === 1).length || 0;
+  const lowStockCount = useMemo(() => {
+    if (!items || !Array.isArray(items)) return 0;
+    return items.filter(i => i && Number(i.is_low_stock) === 1).length;
+  }, [items]);
 
   // Optimized unit calculation with safety checks
   const totalUnits = useMemo(() => {

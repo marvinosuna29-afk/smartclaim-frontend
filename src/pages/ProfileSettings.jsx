@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { User, Mail, ShieldCheck, Save, Loader2, CheckCircle, Lock, Key, X, Fingerprint, AlertTriangle, Send } from 'lucide-react';
+// Added MessageSquare for the Discord icon
+import { User, Mail, ShieldCheck, Save, Loader2, CheckCircle, Lock, Key, X, Fingerprint, AlertTriangle, Send, MessageSquare, ExternalLink } from 'lucide-react';
+import axios from 'axios'; // Ensure axios is imported for the custom routes
 
 export default function ProfileSettings() {
   const { user, updateProfile, requestOTP, verifyOTP } = useApp();
@@ -13,8 +15,13 @@ export default function ProfileSettings() {
   const [passwords, setPasswords] = useState({ next: '', confirm: '' });
   const [isChangingPass, setIsChangingPass] = useState(false);
 
+  // --- NEW: Discord State ---
+  const [discordId, setDiscordId] = useState('');
+  const [isRequestingDiscord, setIsRequestingDiscord] = useState(false);
+
   // OTP Modal State
-  const [otpModal, setOtpModal] = useState({ show: false, code: '', type: null }); // type: 'profile', 'password', or 'email_verify'
+  // types: 'profile', 'password', 'email_verify', 'discord'
+  const [otpModal, setOtpModal] = useState({ show: false, code: '', type: null }); 
   const [isVerifying, setIsVerifying] = useState(false);
   const [status, setStatus] = useState({ type: '', msg: '' });
 
@@ -24,6 +31,8 @@ export default function ProfileSettings() {
         full_name: user.full_name || user.name || '',
         email: user.email || '',
       });
+      // Pre-fill discord ID if they have one saved but aren't verified
+      if (user.discord_id) setDiscordId(user.discord_id);
     }
   }, [user]);
 
@@ -32,45 +41,50 @@ export default function ProfileSettings() {
     setTimeout(() => setStatus({ type: '', msg: '' }), 4000);
   };
 
-  // --- TRIGGER OTP FLOWS ---
-
-  // New: Simple verification trigger for unverified accounts
-  const handleVerifyEmailOnly = async () => {
-    // If the user's email is currently NULL/Empty in the DB
-    if (!user.email && !formData.email) {
-      return notify('error', 'Please enter an email address first.');
+  // --- DISCORD LOGIC ---
+  const handleDiscordRequest = async (e) => {
+    e.preventDefault();
+    if (!discordId) return notify('error', 'Please enter your Discord User ID.');
+    
+    setIsRequestingDiscord(true);
+    try {
+      // Calling your new backend route
+      const res = await axios.post('https://smartclaim-backend.onrender.com/api/auth/discord/request-code', {
+        userId: user.id,
+        discordId: discordId
+      });
+      
+      if (res.data.success) {
+        setOtpModal({ show: true, code: '', type: 'discord' });
+        notify('success', 'Check your Discord DMs!');
+      }
+    } catch (err) {
+      notify('error', err.response?.data?.message || 'Failed to connect to Discord Bot.');
+    } finally {
+      setIsRequestingDiscord(false);
     }
+  };
 
+  // --- EXISTING FLOWS ---
+  const handleVerifyEmailOnly = async () => {
+    if (!user.email && !formData.email) return notify('error', 'Please enter an email address first.');
     setIsVerifying(true);
-    // Prioritize the email in the input box if available
     const targetEmail = formData.email || user.email;
     const success = await requestOTP(targetEmail);
     setIsVerifying(false);
-
-    if (success) {
-      setOtpModal({ show: true, code: '', type: 'email_verify' });
-    } else {
-      notify('error', 'Failed to send code.');
-    }
+    if (success) setOtpModal({ show: true, code: '', type: 'email_verify' });
+    else notify('error', 'Failed to send code.');
   };
 
   const handleProfileUpdateTrigger = async (e) => {
     e.preventDefault();
-    // If the email in the input box is different from the current user email
     if (formData.email !== user.email) {
       setIsSavingProfile(true);
-
-      // CRITICAL: Send the email from the form, not the user object!
       const success = await requestOTP(formData.email);
-
       setIsSavingProfile(false);
-      if (success) {
-        setOtpModal({ show: true, code: '', type: 'profile' });
-      } else {
-        notify('error', 'Failed to send verification code to ' + formData.email);
-      }
+      if (success) setOtpModal({ show: true, code: '', type: 'profile' });
+      else notify('error', 'Failed to send verification code.');
     } else {
-      // Standard profile update (name change only)
       setIsSavingProfile(true);
       const result = await updateProfile(formData);
       setIsSavingProfile(false);
@@ -82,22 +96,39 @@ export default function ProfileSettings() {
     e.preventDefault();
     if (passwords.next !== passwords.confirm) return notify('error', 'New passwords do not match.');
     if (passwords.next.length < 6) return notify('error', 'Password too short.');
-
     setIsChangingPass(true);
     const success = await requestOTP(user.email);
     setIsChangingPass(false);
-
-    if (success) {
-      setOtpModal({ show: true, code: '', type: 'password' });
-    } else {
-      notify('error', 'Could not send OTP to your email.');
-    }
+    if (success) setOtpModal({ show: true, code: '', type: 'password' });
+    else notify('error', 'Could not send OTP.');
   };
 
+  // --- UPDATED CONFIRM OTP ---
   const confirmOTP = async () => {
     setIsVerifying(true);
     const cleanCode = otpModal.code.trim();
 
+    // Handle Discord Verification separately
+    if (otpModal.type === 'discord') {
+      try {
+        const res = await axios.post('https://smartclaim-backend.onrender.com/api/auth/discord/verify-code', {
+          userId: user.id,
+          code: cleanCode
+        });
+        if (res.data.success) {
+          setOtpModal({ show: false, code: '', type: null });
+          notify('success', 'Discord Verified Successfully!');
+          // Optional: Force a profile refresh here if your context doesn't auto-update
+        }
+      } catch (err) {
+        notify('error', err.response?.data?.message || 'Invalid Discord code.');
+      } finally {
+        setIsVerifying(false);
+      }
+      return;
+    }
+
+    // Standard Email/Profile OTP
     const result = await verifyOTP(cleanCode, {
       newEmail: otpModal.type === 'profile' ? formData.email : null,
       newPassword: otpModal.type === 'password' ? passwords.next : null,
@@ -105,16 +136,13 @@ export default function ProfileSettings() {
     });
 
     setIsVerifying(false);
-
     if (result.success) {
       setOtpModal({ show: false, code: '', type: null });
       setPasswords({ next: '', confirm: '' });
-      // Use a nice "Success" state
-      notify('success', 'Profile Verified & Updated!');
+      notify('success', 'Action Verified & Updated!');
     } else {
-      // 🎨 UX UPGRADE: Shake the input or highlight red instead of just an alert
-      setOtpModal(prev => ({ ...prev, code: '' })); // Clear the wrong code
-      notify('error', result.message || 'Incorrect code. Please try again.');
+      setOtpModal(prev => ({ ...prev, code: '' }));
+      notify('error', result.message || 'Incorrect code.');
     }
   };
 
@@ -125,19 +153,21 @@ export default function ProfileSettings() {
       {otpModal.show && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in">
           <div className="bg-white w-full max-w-md rounded-[2.5rem] p-10 shadow-2xl border border-white/20 relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-full h-2 bg-emerald-500"></div>
+            <div className={`absolute top-0 left-0 w-full h-2 ${otpModal.type === 'discord' ? 'bg-indigo-500' : 'bg-emerald-500'}`}></div>
             <button onClick={() => setOtpModal({ ...otpModal, show: false })} className="absolute top-6 right-6 text-slate-400 hover:text-slate-900 transition-colors">
               <X size={24} />
             </button>
 
             <div className="text-center space-y-6">
-              <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-3xl flex items-center justify-center mx-auto">
-                <ShieldCheck size={40} />
+              <div className={`w-20 h-20 rounded-3xl flex items-center justify-center mx-auto ${otpModal.type === 'discord' ? 'bg-indigo-100 text-indigo-600' : 'bg-emerald-100 text-emerald-600'}`}>
+                {otpModal.type === 'discord' ? <MessageSquare size={40} /> : <ShieldCheck size={40} />}
               </div>
               <div className="space-y-2">
-                <h2 className="text-3xl font-black text-slate-900 uppercase tracking-tighter">Verify Identity</h2>
+                <h2 className="text-3xl font-black text-slate-900 uppercase tracking-tighter">
+                  {otpModal.type === 'discord' ? 'Discord Verify' : 'Verify Identity'}
+                </h2>
                 <p className="text-slate-500 font-bold text-[10px] uppercase tracking-widest">
-                  Code sent to {otpModal.type === 'profile' ? formData.email : user.email}
+                  {otpModal.type === 'discord' ? 'Check your Discord Direct Messages' : `Code sent to ${otpModal.type === 'profile' ? formData.email : user.email}`}
                 </p>
               </div>
 
@@ -147,15 +177,15 @@ export default function ProfileSettings() {
                 placeholder="000000"
                 value={otpModal.code}
                 onChange={(e) => setOtpModal({ ...otpModal, code: e.target.value })}
-                className="w-full text-center text-4xl font-black tracking-[1rem] py-6 bg-slate-50 rounded-3xl border-2 border-transparent focus:border-emerald-500 outline-none transition-all placeholder:text-slate-200"
+                className="w-full text-center text-4xl font-black tracking-[1rem] py-6 bg-slate-50 rounded-3xl border-2 border-transparent focus:border-indigo-500 outline-none transition-all placeholder:text-slate-200"
               />
 
               <button
                 onClick={confirmOTP}
                 disabled={isVerifying || otpModal.code.length < 6}
-                className="w-full bg-slate-900 text-white py-5 rounded-2xl font-black uppercase text-xs tracking-widest flex items-center justify-center gap-3 hover:bg-emerald-600 disabled:opacity-50 disabled:hover:bg-slate-900 transition-all"
+                className="w-full bg-slate-900 text-white py-5 rounded-2xl font-black uppercase text-xs tracking-widest flex items-center justify-center gap-3 hover:bg-emerald-600 disabled:opacity-50 transition-all"
               >
-                {isVerifying ? <Loader2 className="animate-spin" size={18} /> : <Fingerprint size={18} />} Confirm & Update
+                {isVerifying ? <Loader2 className="animate-spin" size={18} /> : <Fingerprint size={18} />} Confirm & Verify
               </button>
             </div>
           </div>
@@ -172,29 +202,60 @@ export default function ProfileSettings() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         <div className="lg:col-span-8 space-y-8">
 
-          {/* 🚨 NEW: EMAIL VERIFICATION ALERT (Only shows if not verified) */}
-          {!user?.is_verified && (
-            <div className="bg-amber-50 p-8 rounded-[3rem] border-2 border-dashed border-amber-200 flex flex-col md:flex-row items-center gap-6">
-              <div className="w-16 h-16 bg-amber-100 text-amber-600 rounded-2xl flex items-center justify-center shrink-0">
-                <AlertTriangle size={32} />
-              </div>
-              <div className="flex-1 text-center md:text-left space-y-1">
-                <h4 className="text-lg font-black text-amber-900 uppercase tracking-tight">Email not verified</h4>
-                <p className="text-amber-700/70 text-[11px] font-bold uppercase leading-relaxed">
-                  Verify your email to receive claim receipts and security notifications directly to your inbox.
-                </p>
-              </div>
-              <button
-                onClick={handleVerifyEmailOnly}
-                className="bg-amber-600 text-white px-6 py-4 rounded-2xl font-black uppercase text-[10px] flex items-center gap-2 hover:bg-amber-700 transition-all shadow-lg shadow-amber-200"
-              >
-                <Send size={14} /> Verify Now
-              </button>
-            </div>
-          )}
+          {/* 🎮 NEW SECTION: DISCORD VERIFICATION */}
+          <div className="bg-white p-8 md:p-10 rounded-[3rem] border border-slate-100 shadow-xl shadow-slate-200/40 relative overflow-hidden group">
+             {/* Discord Background Decor */}
+             <MessageSquare className="absolute -right-4 -bottom-4 text-slate-50 group-hover:text-indigo-50 transition-colors" size={140} />
+             
+             <div className="relative z-10">
+                <h3 className="text-sm font-black uppercase tracking-widest mb-8 text-slate-800 flex items-center gap-2">
+                  <MessageSquare size={18} className="text-indigo-500" /> Discord Integration
+                </h3>
+                
+                {user?.is_verified ? (
+                  <div className="flex items-center gap-4 bg-indigo-50 p-6 rounded-3xl border border-indigo-100">
+                    <div className="w-12 h-12 bg-indigo-500 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-200">
+                       <CheckCircle size={24} />
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Linked Account</p>
+                      <p className="font-bold text-slate-700">Verified Discord ID: {user.discord_id || discordId}</p>
+                    </div>
+                  </div>
+                ) : (
+                  <form onSubmit={handleDiscordRequest} className="space-y-6">
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-end px-2">
+                        <label className="text-[10px] font-black text-slate-400 uppercase">Discord User ID</label>
+                        <a href="https://support.discord.com/hc/en-us/articles/206346498" target="_blank" rel="noreferrer" className="text-[9px] font-black text-indigo-500 hover:underline flex items-center gap-1 uppercase tracking-tighter">
+                          How to find ID <ExternalLink size={10} />
+                        </a>
+                      </div>
+                      <input
+                        type="text"
+                        placeholder="e.g. 445058896701161483"
+                        value={discordId}
+                        onChange={(e) => setDiscordId(e.target.value)}
+                        className="w-full px-6 py-4 bg-slate-50 rounded-2xl border-2 border-transparent focus:border-indigo-500 outline-none font-bold placeholder:text-slate-300 transition-all"
+                      />
+                    </div>
+                    <button 
+                      disabled={isRequestingDiscord} 
+                      className="bg-indigo-600 text-white px-8 py-4 rounded-xl font-black uppercase text-[10px] flex items-center gap-3 hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100"
+                    >
+                      {isRequestingDiscord ? <Loader2 className="animate-spin" size={14} /> : <Send size={14} />} Link Discord Account
+                    </button>
+                    <p className="text-[9px] font-bold text-slate-400 leading-relaxed uppercase italic">
+                      * Must share a mutual server with the SmartClaim bot to receive the DM.
+                    </p>
+                  </form>
+                )}
+             </div>
+          </div>
 
           {/* 👤 SECTION 1: PERSONAL INFO */}
           <div className="bg-white p-8 md:p-10 rounded-[3rem] border border-slate-100 shadow-xl shadow-slate-200/40">
+            {/* ... Your Existing Personal Identity JSX ... */}
             <h3 className="text-sm font-black uppercase tracking-widest mb-8 text-slate-800 flex items-center gap-2">
               <User size={18} className="text-emerald-500" /> Personal Identity
             </h3>
@@ -227,6 +288,7 @@ export default function ProfileSettings() {
 
           {/* 🔐 SECTION 2: SECURITY & PASSWORD */}
           <div className="bg-white p-8 md:p-10 rounded-[3rem] border border-slate-100 shadow-xl shadow-slate-200/40">
+             {/* ... Your Existing Password JSX ... */}
             <h3 className="text-sm font-black uppercase tracking-widest mb-8 text-slate-800 flex items-center gap-2">
               <Key size={18} className="text-emerald-500" /> Secure Password Change
             </h3>
@@ -282,8 +344,8 @@ export default function ProfileSettings() {
               </div>
               <p className="text-[10px] font-bold text-white/30 leading-relaxed italic">
                 {user?.is_verified
-                  ? "Your account is fully verified. You will receive automated claim receipts via email."
-                  : "Verification required. Please verify your email to enable all security and notification features."}
+                  ? "Your account is fully verified. You will receive automated claim receipts via email and Discord."
+                  : "Verification required. Please verify your email or link your Discord to enable all security features."}
               </p>
             </div>
           </div>

@@ -105,31 +105,45 @@ export const AppProvider = ({ children }) => {
   }, []);
 
   const refreshUser = useCallback(async () => {
-    const currentId = user?.id || user?.user_id;
+    // 🛡️ Get the ID as a primitive string immediately
+    const currentId = String(user?.id || user?.user_id || "");
     if (!currentId) return;
 
-    // We fetch the latest user data from your existing login/me endpoint
-    // If you don't have a /me endpoint, you can use /api/admin/users/${currentId}
     const r = await api(`/api/auth/user/${currentId}`);
 
     if (r.ok && r.data) {
-      setUser(normalizeUser(r.data)); // This updates State + LocalStorage
+      const newUser = normalizeUser(r.data);
+
+      // 🛡️ ONLY update state if the data is actually different 
+      // (This is the "Loop Breaker")
+      setUserState(prev => {
+        if (JSON.stringify(prev) === JSON.stringify(newUser)) return prev;
+        return newUser;
+      });
     }
+    // 🛡️ Dependency must ONLY be the ID string
   }, [user?.id, normalizeUser]);
 
   // --- CORE DATA SYNC ---
   const refreshData = useCallback(async () => {
-    const currentId = user?.id || user?.user_id;
+    // 🛡️ Use the ID string as a primitive (Stable)
+    const currentId = String(user?.id || user?.user_id || "");
+    const currentRole = String(user?.role || "").toLowerCase();
+
     if (!currentId) return;
 
     setLoading(true);
     try {
       let fetchedUsers = [];
-      if (user.role?.toLowerCase() === 'admin') {
+      if (currentRole === 'admin') {
         const uRes = await api(`/api/admin/users?adminId=${currentId}`);
         if (uRes.ok && Array.isArray(uRes.data)) {
           fetchedUsers = uRes.data.map(normalizeUser);
-          setUsers(fetchedUsers);
+
+          // 🛡️ Only update if the list is actually different to stop re-render loops
+          setUsers(prev => {
+            return JSON.stringify(prev) === JSON.stringify(fetchedUsers) ? prev : fetchedUsers;
+          });
         }
       }
 
@@ -143,7 +157,6 @@ export const AppProvider = ({ children }) => {
       if (annRes.ok) setAnnouncements(annRes.data);
 
       if (ordersRes.ok && Array.isArray(ordersRes.data)) {
-        // Enrichment: Match User Names to Orders locally
         const enriched = ordersRes.data.map(order => {
           const student = fetchedUsers.find(u => String(u.id) === String(order.user_id || order.userId));
           return {
@@ -151,14 +164,19 @@ export const AppProvider = ({ children }) => {
             full_name: order.full_name || student?.name || "Guest Student"
           };
         });
-        setOrders(enriched);
+
+        // 🛡️ Only update if enriched data is different
+        setOrders(prev => {
+          return JSON.stringify(prev) === JSON.stringify(enriched) ? prev : enriched;
+        });
       }
     } catch (err) {
       console.error("Refresh Failure:", err);
     } finally {
       setLoading(false);
     }
-  }, [user, normalizeUser]);
+    // 🛡️ CRITICAL CHANGE: Only watch user.id and role string, NOT the whole object
+  }, [user?.id, user?.role, normalizeUser]);
 
   useEffect(() => {
     if (user?.id) {

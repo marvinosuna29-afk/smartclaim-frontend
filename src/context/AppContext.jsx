@@ -207,8 +207,16 @@ export const AppProvider = ({ children }) => {
       return { success: false, message: r.data?.message || "Failed" };
     },
     submitReceipt: async (orderId, referenceNumber) => {
-      const res = await api('/api/orders/status-update', 'PATCH', { ids: [orderId], status: 'AWAITING_VERIFICATION', receipt_url: referenceNumber, userId: stableUserId });
-      if (res.ok) { refreshData(); return { success: true }; }
+      const res = await api('/api/orders/status-update', 'POST', { // Changed to POST
+        ids: [orderId],
+        status: 'AWAITING_VERIFICATION',
+        receipt_url: referenceNumber,
+        userId: stableUserId
+      });
+      if (res.ok) {
+        refreshData();
+        return { success: true };
+      }
       return { success: false };
     },
     processScanClaim: async (orderIds, adminId) => {

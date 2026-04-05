@@ -1,4 +1,4 @@
-// Version 1.2.0 - Production Stability Deployment
+// Version 1.2.1 - Production Error #310 & Scope Fix
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { io } from 'socket.io-client';
 
@@ -7,7 +7,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://smartclaim-backend
 const socket = io(API_BASE_URL, { transports: ['websocket'] });
 
 export const AppProvider = ({ children }) => {
-    // --- STATE ---
+    // --- 1. BASE STATE ---
     const [user, setUserState] = useState(() => {
         const saved = localStorage.getItem('app_user');
         try { return saved ? JSON.parse(saved) : null; } catch (e) { return null; }
@@ -27,53 +27,14 @@ export const AppProvider = ({ children }) => {
         return localStorage.getItem('app_serving_id') || null;
     });
 
-    // --- 🛡️ STABLE PRIMITIVES (The #310 Killers) ---
-    // These ensure hooks depend on strings/booleans rather than shifting objects
+    // --- 2. STABLE PRIMITIVES ---
     const stableUserId = useMemo(() => (user?.id || user?.user_id ? String(user.id || user.user_id) : null), [user?.id, user?.user_id]);
     const stableRole = useMemo(() => (user?.role ? String(user.role).toLowerCase() : 'student'), [user?.role]);
 
-    // --- DERIVED STATE ---
-    const currentQueue = useMemo(() => {
-        return orders.filter(o => {
-            const status = String(o.status || "").toUpperCase();
-            return status !== 'CLAIMED' && status !== 'CANCELLED';
-        }).length;
-    }, [orders]);
-
-    const readyOrders = useMemo(() => {
-        if (!stableUserId || !orders.length) return [];
-        return orders.filter(o => {
-            const orderUserId = String(o.user_id || o.userId || "");
-            const status = String(o.status || "").toUpperCase();
-            return orderUserId === stableUserId && status === 'READY';
-        });
-    }, [orders, stableUserId]);
-
-    // --- PERSISTENCE ---
-    useEffect(() => {
-        localStorage.setItem('app_orders', JSON.stringify(orders));
-    }, [orders]);
-
-    useEffect(() => {
-        if (currentServingId !== null && currentServingId !== undefined) {
-            localStorage.setItem('app_serving_id', String(currentServingId));
-        }
-    }, [currentServingId]);
-
-    // --- HELPERS ---
-    const setUser = (userData) => {
-        if (userData) {
-            localStorage.setItem('app_user', JSON.stringify(userData));
-        } else {
-            localStorage.removeItem('app_user');
-            localStorage.removeItem('token');
-        }
-        setUserState(userData);
-    };
-
-    const api = async (url, method = 'GET', body = null) => {
+    // --- 3. HELPERS & SYNC ---
+    const api = useCallback(async (url, method = 'GET', body = null) => {
         const controller = new AbortController();
-        const id = setTimeout(() => controller.abort(), 15000);
+        const timeoutId = setTimeout(() => controller.abort(), 15000);
         try {
             const options = {
                 method,
@@ -83,14 +44,14 @@ export const AppProvider = ({ children }) => {
             if (body) options.body = JSON.stringify(body);
             const fullUrl = url.startsWith('http') ? url : `${API_BASE_URL}${url}`;
             const response = await fetch(fullUrl, options);
-            clearTimeout(id);
+            clearTimeout(timeoutId);
             const data = await response.json();
             return { ok: response.ok, data, status: response.status };
         } catch (err) {
-            clearTimeout(id);
+            clearTimeout(timeoutId);
             return { ok: false, data: { message: "Server timeout/offline" } };
         }
-    };
+    }, []);
 
     const normalizeUser = useCallback((u) => {
         if (!u) return null;
@@ -105,19 +66,6 @@ export const AppProvider = ({ children }) => {
         };
     }, []);
 
-    // --- CORE DATA SYNC ---
-    const refreshUser = useCallback(async () => {
-        if (!stableUserId) return;
-        const r = await api(`/api/auth/user/${stableUserId}`);
-        if (r.ok && r.data) {
-            const newUser = normalizeUser(r.data);
-            setUserState(prev => {
-                if (JSON.stringify(prev) === JSON.stringify(newUser)) return prev;
-                return newUser;
-            });
-        }
-    }, [stableUserId, normalizeUser]);
-
     const refreshData = useCallback(async () => {
         if (!stableUserId) return;
         setLoading(true);
@@ -127,9 +75,7 @@ export const AppProvider = ({ children }) => {
                 const uRes = await api(`/api/admin/users?adminId=${stableUserId}`);
                 if (uRes.ok && Array.isArray(uRes.data)) {
                     fetchedUsers = uRes.data.map(normalizeUser);
-                    setUsers(prev => {
-                        return JSON.stringify(prev) === JSON.stringify(fetchedUsers) ? prev : fetchedUsers;
-                    });
+                    setUsers(prev => JSON.stringify(prev) === JSON.stringify(fetchedUsers) ? prev : fetchedUsers);
                 }
             }
 
@@ -145,105 +91,70 @@ export const AppProvider = ({ children }) => {
             if (ordersRes.ok && Array.isArray(ordersRes.data)) {
                 const enriched = ordersRes.data.map(order => {
                     const student = fetchedUsers.find(u => String(u.id) === String(order.user_id || order.userId));
-                    return {
-                        ...order,
-                        full_name: order.full_name || student?.name || "Guest Student"
-                    };
+                    return { ...order, full_name: order.full_name || student?.name || "Guest Student" };
                 });
-                setOrders(prev => {
-                    return JSON.stringify(prev) === JSON.stringify(enriched) ? prev : enriched;
-                });
+                setOrders(prev => JSON.stringify(prev) === JSON.stringify(enriched) ? prev : enriched);
             }
         } catch (err) {
             console.error("Refresh Failure:", err);
         } finally {
-            // Small delay to prevent loading state "flicker" which triggers hook mismatches
             setTimeout(() => setLoading(false), 50);
         }
-    }, [stableUserId, stableRole, normalizeUser]);
+    }, [stableUserId, stableRole, normalizeUser, api]);
 
-    useEffect(() => {
-        if (stableUserId && items.length === 0) {
-            refreshData();
-        }
-    }, [stableUserId, items.length, refreshData]);
-
-    // --- SOCKET LISTENERS ---
-    useEffect(() => {
+    const refreshUser = useCallback(async () => {
         if (!stableUserId) return;
+        const r = await api(`/api/auth/user/${stableUserId}`);
+        if (r.ok && r.data) {
+            const newUser = normalizeUser(r.data);
+            setUserState(prev => JSON.stringify(prev) === JSON.stringify(newUser) ? prev : newUser);
+        }
+    }, [stableUserId, normalizeUser, api]);
 
-        const handleQueue = (data) => {
-            const nextId = String(data.currentNumber || data.nextId || "0");
-            setCurrentServingId(prev => (prev !== nextId ? nextId : prev));
-        };
-
-        const handleOrderCreated = (newOrder) => {
-            setOrders(prev => {
-                if (prev.some(o => String(o.id) === String(newOrder.id))) return prev;
-                return [{ ...newOrder, status: (newOrder.status || 'PENDING').toUpperCase() }, ...prev];
-            });
-        };
-
-        const handleOrderUpdated = (d) => {
-            setOrders(prev => prev.map(o => {
-                const targetIds = Array.isArray(d.ids) ? d.ids.map(id => String(id)) : [String(d.id || d.orderId)];
-                if (targetIds.includes(String(o.id))) {
-                    const newStatus = String(d.status || o.status).toUpperCase().trim();
-                    return { ...o, ...d, status: newStatus };
-                }
-                return o;
-            }));
-        };
-
-        socket.on('office_status_updated', setOfficeStatus);
-        socket.on('queue_updated', handleQueue);
-        socket.on('order_created', handleOrderCreated);
-        socket.on('inventory_updated', (d) => setItems(prev => prev.map(i => i.id === d.itemId ? { ...i, ...d } : i)));
-        socket.on('order_updated', handleOrderUpdated);
-
-        return () => {
-            socket.off('office_status_updated');
-            socket.off('queue_updated');
-            socket.off('order_created');
-            socket.off('inventory_updated');
-            socket.off('order_updated');
-        };
-    }, [stableUserId]);
-
-    // --- ACTIONS ---
-    const actions = {
+    // --- 4. ACTIONS (Memoized to prevent 'l is not a function') ---
+    const actions = useMemo(() => ({
+        setUser: (userData) => {
+            if (userData) localStorage.setItem('app_user', JSON.stringify(userData));
+            else { localStorage.removeItem('app_user'); localStorage.removeItem('token'); }
+            setUserState(userData);
+        },
         login: async (id, password) => {
             const r = await api('/api/auth/login', 'POST', { id, password });
             if (r.ok) {
                 localStorage.setItem('token', r.data.token);
-                setUser(normalizeUser(r.data.user));
+                const normalized = normalizeUser(r.data.user);
+                if (normalized) {
+                    localStorage.setItem('app_user', JSON.stringify(normalized));
+                    setUserState(normalized);
+                }
                 return { success: true };
             }
             return { success: false, message: r.data.message };
         },
-        logout: () => { setUser(null); window.location.href = '/login'; },
+        logout: () => {
+            localStorage.clear();
+            setUserState(null);
+            window.location.href = '/login';
+        },
         requestOTP: async (targetEmail) => {
             return await api('/api/auth/request-otp', 'POST', { email: targetEmail, userId: stableUserId });
         },
         verifyOTP: async (otp, payload = {}) => {
-            const r = await api('/api/auth/verify-otp', 'POST', {
-                otp: String(otp).trim(),
-                ...payload,
-                userId: stableUserId
-            });
+            const r = await api('/api/auth/verify-otp', 'POST', { otp: String(otp).trim(), ...payload, userId: stableUserId });
             if (r.ok) {
-                if (r.data && r.data.user) setUser(normalizeUser(r.data.user));
-                else await refreshData();
+                if (r.data?.user) {
+                    const normalized = normalizeUser(r.data.user);
+                    localStorage.setItem('app_user', JSON.stringify(normalized));
+                    setUserState(normalized);
+                } else {
+                    refreshData();
+                }
                 return { success: true };
             }
             return { success: false, message: r.data?.message || "Verification failed" };
         },
         promoteUser: async (targetId, nextRole) => {
-            const r = await api('/api/admin/users/promote', 'PATCH', {
-                targetUserId: String(targetId),
-                adminId: stableUserId,
-                newRole: nextRole
-            });
+            const r = await api('/api/admin/users/promote', 'PATCH', { targetUserId: String(targetId), adminId: stableUserId, newRole: nextRole });
             if (r.ok) {
                 setUsers(prev => prev.map(u => (u.id === targetId ? { ...u, role: nextRole } : u)));
                 return { success: true };
@@ -251,29 +162,19 @@ export const AppProvider = ({ children }) => {
             return { success: false };
         },
         deleteUser: async (targetUserId) => {
-            if (!window.confirm("Permanently delete this user?")) return;
+            if (!window.confirm("Delete this user?")) return;
             const r = await api(`/api/admin/users/${targetUserId}?adminId=${stableUserId}`, 'DELETE');
-            if (r.ok) {
-                setUsers(prev => prev.filter(u => u.id !== targetUserId));
-                return { success: true };
-            }
+            if (r.ok) { setUsers(prev => prev.filter(u => u.id !== targetUserId)); return { success: true }; }
             return { success: false };
         },
         addItem: async (itemData) => {
             const r = await api('/api/items', 'POST', { ...itemData, adminId: stableUserId });
-            if (r.ok) {
-                const newItem = r.data.item || r.data;
-                setItems(prev => [...prev, newItem]);
-                return { success: true };
-            }
+            if (r.ok) { setItems(prev => [...prev, (r.data.item || r.data)]); return { success: true }; }
             return { success: false, message: r.data?.message };
         },
         deleteItem: async (id) => {
             const r = await api(`/api/items/${id}?adminId=${stableUserId}`, 'DELETE');
-            if (r.ok) {
-                setItems(prev => prev.filter(item => item.id !== id));
-                return { success: true };
-            }
+            if (r.ok) { setItems(prev => prev.filter(item => item.id !== id)); return { success: true }; }
             return { success: false };
         },
         toggleLowStock: async (itemId) => {
@@ -288,58 +189,35 @@ export const AppProvider = ({ children }) => {
             const r = await api('/api/orders', 'POST', { ...orderData, userId: stableUserId });
             if (r.ok) {
                 const serverOrder = r.data.order || r.data;
-                setOrders(prev => {
-                    if (prev.some(o => String(o.id) === String(serverOrder.id))) return prev;
-                    return [serverOrder, ...prev];
-                });
+                setOrders(prev => prev.some(o => String(o.id) === String(serverOrder.id)) ? prev : [serverOrder, ...prev]);
                 return { success: true, orderId: serverOrder.id };
             }
-            return { success: false, message: r.data?.message || "Failed to place order" };
+            return { success: false, message: r.data?.message || "Failed" };
         },
         submitReceipt: async (orderId, referenceNumber) => {
-            const response = await api('/api/orders/status-update', 'PATCH', {
-                ids: [orderId],
-                status: 'AWAITING_VERIFICATION',
-                receipt_url: referenceNumber,
-                userId: stableUserId
-            });
-            if (response.ok) { await refreshData(); return { success: true }; }
+            const res = await api('/api/orders/status-update', 'PATCH', { ids: [orderId], status: 'AWAITING_VERIFICATION', receipt_url: referenceNumber, userId: stableUserId });
+            if (res.ok) { refreshData(); return { success: true }; }
             return { success: false };
         },
         processScanClaim: async (orderIds, adminId) => {
             const normalizedIds = Array.isArray(orderIds) ? orderIds.map(id => String(id)) : [String(orderIds)];
-            const response = await api('/api/orders/scan-claim', 'POST', { orderIds: normalizedIds, adminId });
-            if (response.ok) {
-                setOrders(prev => prev.map(order =>
-                    normalizedIds.includes(String(order.id)) ? { ...order, status: 'CLAIMED' } : order
-                ));
-                setItems(prevItems => prevItems.map(item => {
-                    const claimedForThisItem = orders.filter(o =>
-                        normalizedIds.includes(String(o.id)) && (String(o.item_id) === String(item.id))
-                    );
-                    if (claimedForThisItem.length === 0) return item;
-                    const newSizes = { ...item.sizes };
-                    claimedForThisItem.forEach(o => {
-                        const sizeKey = Object.keys(newSizes).find(k => o.size && k.toLowerCase() === String(o.size).toLowerCase());
-                        if (sizeKey && newSizes[sizeKey] > 0) newSizes[sizeKey] -= 1;
-                    });
-                    return { ...item, sizes: newSizes };
-                }));
-                setTimeout(() => refreshData(), 1500);
+            const res = await api('/api/orders/scan-claim', 'POST', { orderIds: normalizedIds, adminId });
+            if (res.ok) {
+                setOrders(prev => prev.map(o => normalizedIds.includes(String(o.id)) ? { ...o, status: 'CLAIMED' } : o));
+                setTimeout(() => refreshData(), 1000);
                 return { success: true };
             }
-            return { success: false, message: response.data?.message };
+            return { success: false };
         },
         incrementQueue: async (adminId) => {
             const r = await api('/api/queue/increment', 'POST', { adminId });
-            return r.ok ? { success: true, nextId: r.data.currentNumber } : { success: false, message: r.data.message || "Queue Error" };
+            return r.ok ? { success: true, nextId: r.data.currentNumber } : { success: false };
         },
         updateOrderStatusBulk: async (ids, status) => {
-            const normalizedStatus = String(status).toUpperCase();
-            const r = await api('/api/orders/status-update', 'PATCH', { ids, status: normalizedStatus, adminId: stableUserId });
+            const r = await api('/api/orders/status-update', 'PATCH', { ids, status: status.toUpperCase(), adminId: stableUserId });
             if (r.ok) {
                 const stringIds = ids.map(id => String(id));
-                setOrders(prev => prev.map(o => stringIds.includes(String(o.id)) ? { ...o, status: normalizedStatus } : o));
+                setOrders(prev => prev.map(o => stringIds.includes(String(o.id)) ? { ...o, status: status.toUpperCase() } : o));
                 return { success: true };
             }
             return { success: false };
@@ -357,22 +235,58 @@ export const AppProvider = ({ children }) => {
             const r = await api('/api/admin/system-status', 'PATCH', { status: nextStatus, password, adminId: stableUserId });
             if (r.ok) setOfficeStatus(nextStatus);
             return { success: r.ok };
-        },
-        printReceipt: async (order) => {
-            console.log("Printing...", order.id);
-            return { success: true };
         }
-    };
+    }), [stableUserId, api, normalizeUser, refreshData]);
+
+    // --- 5. DERIVED STATE ---
+    const currentQueue = useMemo(() => orders.filter(o => !['CLAIMED', 'CANCELLED'].includes(o.status?.toUpperCase())).length, [orders]);
+    const readyOrders = useMemo(() => {
+        if (!stableUserId) return [];
+        return orders.filter(o => String(o.user_id || o.userId) === stableUserId && o.status?.toUpperCase() === 'READY');
+    }, [orders, stableUserId]);
+
+    // --- 6. EFFECTS ---
+    useEffect(() => { localStorage.setItem('app_orders', JSON.stringify(orders)); }, [orders]);
+    useEffect(() => { if (currentServingId) localStorage.setItem('app_serving_id', String(currentServingId)); }, [currentServingId]);
+
+    useEffect(() => {
+        if (!stableUserId) return;
+        const handleQueue = (d) => setCurrentServingId(String(d.currentNumber || d.nextId || "0"));
+        const handleOrderUpdated = (d) => {
+            setOrders(prev => prev.map(o => {
+                const targets = Array.isArray(d.ids) ? d.ids.map(id => String(id)) : [String(d.id || d.orderId)];
+                return targets.includes(String(o.id)) ? { ...o, ...d, status: (d.status || o.status).toUpperCase() } : o;
+            }));
+        };
+
+        socket.on('queue_updated', handleQueue);
+        socket.on('order_updated', handleOrderUpdated);
+        socket.on('office_status_updated', setOfficeStatus);
+
+        return () => {
+            socket.off('queue_updated');
+            socket.off('order_updated');
+            socket.off('office_status_updated');
+        };
+    }, [stableUserId]);
+
+    useEffect(() => {
+        if (stableUserId && items.length === 0) refreshData();
+    }, [stableUserId, items.length, refreshData]);
 
     return (
         <AppContext.Provider value={{
             user, users, items, orders, announcements, officeStatus, loading, privateAlert,
             currentQueue, readyOrders, refreshUser, currentServingId,
-            setUser, refreshData, ...actions
+            refreshData, ...actions
         }}>
             {children}
         </AppContext.Provider>
     );
 };
 
-export const useApp = () => useContext(AppContext);
+export const useApp = () => {
+    const context = useContext(AppContext);
+    if (!context) throw new Error("useApp must be used within AppProvider");
+    return context;
+};

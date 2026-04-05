@@ -35,30 +35,36 @@ export default function QueueMonitor() {
 
     // 3. ACCURATE POSITION LOGIC
     const queuePosition = useMemo(() => {
-        if (!activeOrder) return 1;
+        // 1. Safety check: If no order or no orders list, default to 1
+        if (!activeOrder || !orders.length) return 1;
 
+        // 2. Ensure we are comparing Numbers to Numbers
         const myId = Number(activeOrder.id);
         const servingId = Number(currentServingId || 0);
 
-        // If my order ID is less than or equal to what is being served, I am #1
+        // 3. If I am the one being served or my ID is somehow behind the pointer, I'm #1
         if (myId <= servingId) return 1;
 
-        // Filter only orders that are "between" the current pointer and my ID
-        const ahead = orders.filter(o => {
+        // 4. Count how many valid orders exist between the pointer and me
+        // Use a simple filter. Do NOT call other functions or set state here.
+        const aheadCount = orders.reduce((acc, o) => {
             const oId = Number(o.id);
-            const oStatus = String(o.status).toUpperCase();
+            const status = String(o.status || "").toUpperCase();
 
-            // We only count people who are still waiting and are between the Admin and Me
-            return (
-                oStatus !== 'CLAIMED' &&
-                oStatus !== 'CANCELLED' &&
-                oId >= servingId &&
-                oId < myId
-            );
-        });
+            // Only count orders that:
+            // - Are between the current serving ID and my ID
+            // - Are NOT claimed/cancelled (still active)
+            if (oId >= servingId && oId < myId && status !== 'CLAIMED' && status !== 'CANCELLED') {
+                return acc + 1;
+            }
+            return acc;
+        }, 0);
 
-        return ahead.length + 1;
-    }, [orders, activeOrder, currentServingId]);
+        return aheadCount + 1;
+
+        // CRITICAL: We only use the length of orders as a dependency 
+        // to prevent deep-object comparison loops.
+    }, [orders.length, activeOrder?.id, currentServingId]);
 
     // 4. STATS & STYLING CONSTANTS
     const totalInQueue = orders.filter(o => {
@@ -73,8 +79,8 @@ export default function QueueMonitor() {
     return (
         <div className="w-full animate-in slide-in-from-top duration-700">
             <div className={`rounded-[2.5rem] p-8 text-white shadow-2xl transition-all duration-500 relative overflow-hidden border ${isReady
-                    ? 'bg-emerald-600 border-emerald-400/30 shadow-emerald-500/20'
-                    : 'bg-slate-900 border-white/5 shadow-slate-950/50'
+                ? 'bg-emerald-600 border-emerald-400/30 shadow-emerald-500/20'
+                : 'bg-slate-900 border-white/5 shadow-slate-950/50'
                 }`}>
 
                 {/* Animated Background Element */}
@@ -86,8 +92,8 @@ export default function QueueMonitor() {
                     {/* LEFT: Position Logic */}
                     <div className="flex flex-col items-center lg:items-start gap-4">
                         <div className={`flex items-center gap-2 px-4 py-1.5 rounded-full border ${isReady
-                                ? 'bg-white/20 border-white/30 text-white'
-                                : 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400'
+                            ? 'bg-white/20 border-white/30 text-white'
+                            : 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400'
                             }`}>
                             {isReady ? <Zap size={14} fill="currentColor" /> : <Activity size={14} className="animate-pulse" />}
                             <span className="text-[10px] font-black uppercase tracking-[0.2em]">

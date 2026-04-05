@@ -169,10 +169,17 @@ export const AppProvider = ({ children }) => {
 
     const events = {
       office_status_updated: setOfficeStatus,
-      queue_advanced: (data) => {
-        const nextId = String(data.currentServingId || data.nextId);
-        setCurrentServingId(nextId);
-        localStorage.setItem('app_serving_id', nextId);
+      queue_updated: (data) => {
+        // Ensure we are dealing with a clean string/number
+        const nextNumber = String(data.currentNumber || data.nextId || "0");
+
+        setCurrentServingId(prev => {
+          // 🛡️ Only update if the number is actually different
+          if (prev === nextNumber) return prev;
+
+          localStorage.setItem('app_serving_id', nextNumber);
+          return nextNumber;
+        });
       },
       order_created: (newOrder) => {
         setOrders(prev => {
@@ -366,27 +373,15 @@ export const AppProvider = ({ children }) => {
     },
 
     incrementQueue: async (adminId) => {
-      // 1. Get all READY orders and sort them by ID (Oldest first)
-      const readyOnes = orders
-        .filter(o => String(o.status).toUpperCase() === 'READY')
-        .sort((a, b) => Number(a.id) - Number(b.id));
+      // Just hit the new backend endpoint - let the DB decide the next ID
+      const r = await api('/api/queue/increment', 'POST', { adminId });
 
-      if (readyOnes.length === 0) return { success: false, message: "Queue Empty" };
-
-      // 2. Find the next one after the current one
-      const currentIndex = readyOnes.findIndex(o => String(o.id) === String(currentServingId));
-      const nextOrder = readyOnes[currentIndex + 1] || readyOnes[0];
-
-      const nextId = String(nextOrder.id);
-
-      // 3. Update Local State
-      setCurrentServingId(nextId);
-      localStorage.setItem('app_serving_id', nextId);
-
-      // 4. Tell the server to broadcast this to everyone
-      socket.emit('advance_queue', { currentServingId: nextId, adminId });
-
-      return { success: true, nextId };
+      if (r.ok) {
+        // The socket listener 'queue_updated' will catch the broadcast 
+        // and update the UI for everyone automatically.
+        return { success: true, nextId: r.data.currentNumber };
+      }
+      return { success: false, message: r.data.message || "Queue Error" };
     },
 
     updateOrderStatusBulk: async (ids, status) => {

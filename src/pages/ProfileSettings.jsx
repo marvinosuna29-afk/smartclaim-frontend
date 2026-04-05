@@ -5,7 +5,7 @@ import { User, Mail, ShieldCheck, Save, Loader2, CheckCircle, Lock, Key, X, Fing
 import axios from 'axios'; // Ensure axios is imported for the custom routes
 
 export default function ProfileSettings() {
-  const { user, updateProfile, requestOTP, verifyOTP } = useApp();
+  const { user, updateProfile, requestOTP, verifyOTP, refreshUser, unlinkDiscord } = useApp();
 
   // Profile State
   const [formData, setFormData] = useState({ full_name: '', email: '' });
@@ -159,24 +159,16 @@ export default function ProfileSettings() {
   };
 
   const handleUnlinkDiscord = async () => {
-    if (!window.confirm("Are you sure you want to unlink your Discord? Notifications will stop.")) return;
+    if (!window.confirm("Are you sure? Discord notifications will stop.")) return;
 
-    try {
-      const res = await axios.post('https://smartclaim-backend.onrender.com/api/auth/discord/unlink', {
-        userId: user.id
-      });
+    // Use the action from AppContext instead of local axios
+    const { unlinkDiscord } = useApp(); // Make sure to destructure this at the top too!
 
-      if (res.data.success) {
-        // refreshUser is likely exported from your useApp() hook
-        if (typeof updateProfile === 'function') {
-          // If you don't have a dedicated refreshUser, 
-          // fetching the profile again works too
-          window.location.reload();
-        }
-        notify('success', 'Discord unlinked successfully.');
-      }
-    } catch (err) {
-      notify('error', 'Failed to unlink.');
+    const result = await unlinkDiscord();
+    if (result.success) {
+      notify('success', 'Discord unlinked successfully.');
+    } else {
+      notify('error', result.message || 'Failed to unlink.');
     }
   };
 
@@ -242,8 +234,8 @@ export default function ProfileSettings() {
               <MessageSquare size={18} className="text-indigo-500" /> Discord Integration
             </h3>
 
-            {/* Check specifically if the DISCORD ID is linked and verified */}
-            {user?.is_verified ? (
+            {/* 1. Check for the presence of discord_id specifically, not just general verification */}
+            {user?.discord_id ? (
               <div className="flex flex-col md:flex-row items-center justify-between gap-6 bg-indigo-50 p-6 rounded-3xl border border-indigo-100 animate-in zoom-in-95">
                 {/* Left Side: Status Info */}
                 <div className="flex items-center gap-4">
@@ -252,11 +244,14 @@ export default function ProfileSettings() {
                   </div>
                   <div>
                     <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Linked Account</p>
-                    <p className="font-bold text-slate-700">Verified Discord ID: {user.discord_id || discordId}</p>
+                    <p className="font-bold text-slate-700">
+                      {/* Use the stable ID from the user object */}
+                      Verified Discord ID: <span className="font-mono">{user.discord_id}</span>
+                    </p>
                   </div>
                 </div>
 
-                {/* 🔥 THE UNLINK BUTTON (Add this now) */}
+                {/* 2. Integrate the Unlink Action from your Context */}
                 <button
                   onClick={handleUnlinkDiscord}
                   className="w-full md:w-auto px-6 py-3 rounded-xl bg-white border border-red-100 text-red-500 font-black text-[10px] uppercase tracking-widest hover:bg-red-50 hover:border-red-200 transition-all flex items-center justify-center gap-2"

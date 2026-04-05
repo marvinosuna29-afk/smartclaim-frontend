@@ -29,29 +29,25 @@ export default function StudentPortal({ needsVerification, activeTab, myOrders: 
 
   // --- 🛡️ FILTER LOGIC ---
   const myOrders = useMemo(() => {
-    // Priority: Use contextOrders if they exist, as they are live-updated by sockets
     const sourceOrders = contextOrders.length > 0 ? contextOrders : (propsOrders || []);
     const currentUserId = String(user?.user_id || user?.id || "").trim();
 
-    if (!currentUserId || sourceOrders.length === 0) return [];
-
+    // Move the "empty" check inside the filter so the hook always completes
     return sourceOrders.filter(o => {
+      if (!currentUserId) return false;
       const orderOwnerId = String(
         o.user_id || o.userId || o.student_id || o.studentId || o.owner_id || ""
       ).trim();
       return orderOwnerId === currentUserId;
     });
-  }, [propsOrders, contextOrders, user]); // Now it watches contextOrders correctly
+  }, [propsOrders, contextOrders, user]);
 
   const pendingPayment = useMemo(() => {
+    // Always run the filter, even if myOrders is empty
     return myOrders.filter(o => {
-      // Normalize the status string
       const s = String(o.status || "").toUpperCase().trim();
-
-      // ✅ FIX: Catching both 'PENDING' and any status that requires a receipt
       const needsPayment = s === 'PENDING' || s === 'AWAITING_PAYMENT' || s === 'UNPAID';
       const hasNoProof = !o.receipt_url && !o.reference_number;
-
       return needsPayment && hasNoProof;
     });
   }, [myOrders]);

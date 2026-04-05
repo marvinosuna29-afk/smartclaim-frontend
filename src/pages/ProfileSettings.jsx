@@ -236,10 +236,9 @@ export default function ProfileSettings() {
               <MessageSquare size={18} className="text-indigo-500" /> Discord Integration
             </h3>
 
-            {/* 1. Check for the presence of discord_id specifically, not just general verification */}
-            {user?.discord_id ? (
+            {/* ⚡️ IMPROVED CHECK: Use both discord_id OR is_verified to prevent the UI from flickering back to the form */}
+            {(user?.discord_id || user?.is_verified) ? (
               <div className="flex flex-col md:flex-row items-center justify-between gap-6 bg-indigo-50 p-6 rounded-3xl border border-indigo-100 animate-in zoom-in-95">
-                {/* Left Side: Status Info */}
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 bg-indigo-500 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-200">
                     <CheckCircle size={24} />
@@ -247,13 +246,16 @@ export default function ProfileSettings() {
                   <div>
                     <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Linked Account</p>
                     <p className="font-bold text-slate-700">
-                      {/* Use the stable ID from the user object */}
-                      Verified Discord ID: <span className="font-mono">{user.discord_id}</span>
+                      {/* Show the ID if we have it, otherwise show a generic verified message */}
+                      {user?.discord_id ? (
+                        <>Verified Discord ID: <span className="font-mono">{user.discord_id}</span></>
+                      ) : (
+                        "Discord Account Linked & Verified"
+                      )}
                     </p>
                   </div>
                 </div>
 
-                {/* 2. Integrate the Unlink Action from your Context */}
                 <button
                   onClick={handleUnlinkDiscord}
                   className="w-full md:w-auto px-6 py-3 rounded-xl bg-white border border-red-100 text-red-500 font-black text-[10px] uppercase tracking-widest hover:bg-red-50 hover:border-red-200 transition-all flex items-center justify-center gap-2"

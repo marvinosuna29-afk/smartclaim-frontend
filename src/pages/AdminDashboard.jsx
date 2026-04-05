@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect } from 'react'; // Added useEffect
 import { useApp } from '../context/AppContext';
 import {
   Package, Clock, AlertTriangle, Printer,
@@ -14,58 +14,55 @@ export default function AdminDashboard({ setActiveTab }) {
     toggleOfficeStatus,
     updateOrderStatusBulk,
     printReceipt,
+    refreshData // This was likely the 'l' function failing
   } = useApp();
+
+  // 🛡️ SAFE REFRESH: Only call if it's a valid function
+  useEffect(() => {
+    if (typeof refreshData === 'function') {
+      refreshData();
+    }
+  }, [refreshData]);
 
   const currentStatus = officeStatus || 'OPEN';
 
   const handleToggle = async () => {
+    if (typeof toggleOfficeStatus !== 'function') return;
     const nextStatus = currentStatus === 'OPEN' ? 'CLOSED' : 'OPEN';
     const password = prompt(`Enter Admin Password to ${nextStatus} the system:`);
     if (!password) return;
     const result = await toggleOfficeStatus(nextStatus, password);
-    if (!result.success) alert(result.error || "Update failed");
+    if (!result?.success) alert(result?.error || "Update failed");
   };
 
   // --- DATA FILTERING & QUEUE LOGIC ---
   const ordersToVerify = useMemo(() => {
-    if (!orders || !Array.isArray(orders)) return [];
-    return orders.filter(o => {
+    return (orders || []).filter(o => {
       const s = String(o.status || "").toUpperCase();
       return s === 'AWAITING_VERIFICATION' || s === 'VERIFYING';
     });
-  }, [orders]); // Use 'orders' instead of 'orders.length'
+  }, [orders]);
 
   const activePickupQueue = useMemo(() => {
-    if (!orders || !Array.isArray(orders)) return [];
-    return orders.filter(o => String(o.status || "").toUpperCase() === 'READY');
-  }, [orders]); // Use 'orders' instead of 'orders.length'
+    return (orders || []).filter(o => String(o.status || "").toUpperCase() === 'READY');
+  }, [orders]);
 
   const displayQueue = useMemo(() => activePickupQueue.length, [activePickupQueue]);
 
-  // 2. STOCK: Watch the whole 'items' array
   const lowStockCount = useMemo(() => {
-    if (!items || !Array.isArray(items)) return 0;
-    return items.filter(i => i && Number(i.is_low_stock) === 1).length;
-  }, [items]); // Use 'items' instead of 'items.length'
-
-  const totalUnits = useMemo(() => {
-    // 1. Safety check for empty or null items
-    if (!items || items.length === 0) return 0;
-
-    return items.reduce((acc, item) => {
-      // 2. Ensure item and sizes exist
-      if (!item) return acc;
-
-      const sizesObj = (item.sizes && typeof item.sizes === 'object') ? item.sizes : {};
-
-      // 3. Inner reduce (This one was actually correct, but we'll keep it safe)
-      const itemTotal = Object.values(sizesObj).reduce((a, b) => a + (Number(b) || 0), 0);
-
-      return acc + itemTotal;
-    }, 0); // <--- CRITICAL: Added the 0 initial value here
+    return (items || []).filter(i => i && Number(i.is_low_stock) === 1).length;
   }, [items]);
 
-  // 3. STATS CARDS: Watch the derived memo results directly
+  const totalUnits = useMemo(() => {
+    if (!items || items.length === 0) return 0;
+    return items.reduce((acc, item) => {
+      if (!item) return acc;
+      const sizesObj = (item.sizes && typeof item.sizes === 'object') ? item.sizes : {};
+      const itemTotal = Object.values(sizesObj).reduce((a, b) => a + (Number(b) || 0), 0);
+      return acc + itemTotal;
+    }, 0);
+  }, [items]);
+
   const statsCards = useMemo(() => [
     { label: 'To Verify', value: ordersToVerify.length, icon: AlertTriangle, color: 'bg-amber-500', tab: 'orders' },
     { label: 'Ready for Pickup', value: activePickupQueue.length, icon: Clock, color: 'bg-blue-500', tab: 'scanner' },
@@ -75,7 +72,6 @@ export default function AdminDashboard({ setActiveTab }) {
 
   return (
     <div className="space-y-10 pb-12 text-left animate-in fade-in duration-700">
-
       {/* QUEUE & SYSTEM STATUS */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch no-print">
         <div className="lg:col-span-8 bg-slate-950 p-8 md:p-12 rounded-[3.5rem] text-white shadow-2xl flex flex-col xl:flex-row items-center justify-between gap-8 relative overflow-hidden">
@@ -113,9 +109,7 @@ export default function AdminDashboard({ setActiveTab }) {
 
       {/* PERFORMANCE METRICS */}
       <section className="bg-white border border-slate-100 rounded-[3.5rem] p-8 md:p-10 shadow-sm no-print relative overflow-hidden">
-        {/* Background Decorative Element */}
         <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full -mr-16 -mt-16 blur-3xl" />
-
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4 relative z-10">
           <div>
             <h3 className="text-2xl font-black text-slate-900 flex items-center gap-3 uppercase tracking-tighter">
@@ -129,8 +123,6 @@ export default function AdminDashboard({ setActiveTab }) {
               Real-time System Throughput
             </p>
           </div>
-
-          {/* Quick Stats Summary */}
           <div className="flex gap-2">
             <div className="px-4 py-2 bg-slate-50 rounded-2xl border border-slate-100">
               <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Data Points</p>
@@ -139,24 +131,17 @@ export default function AdminDashboard({ setActiveTab }) {
           </div>
         </div>
 
-        {/* 🛡️ STABLE RENDER STRATEGY: 
-    We keep OrderAnalytics mounted 100% of the time so its hooks are stable.
-    We only hide it visually if there is no data.
-  */}
-        <div className={orders && orders.length > 0 ? "block animate-in fade-in slide-in-from-bottom-4 duration-1000" : "hidden"}>
-          <OrderAnalytics orders={orders || []} />
-        </div>
-
-        {/* 🛡️ EMPTY STATE (Conditional Rendering is safe here because this div has no hooks) */}
-        {(!orders || orders.length === 0) && (
+        {/* 🛡️ DATA-READY RENDER */}
+        {orders && orders.length > 0 ? (
+          <div className="block animate-in fade-in slide-in-from-bottom-4 duration-1000">
+            <OrderAnalytics orders={orders} />
+          </div>
+        ) : (
           <div className="py-24 text-center space-y-4 bg-slate-50/50 rounded-[2.5rem] border-2 border-dashed border-slate-100">
             <div className="mx-auto w-12 h-12 bg-white rounded-2xl shadow-sm flex items-center justify-center text-slate-200">
               <Package size={24} />
             </div>
-            <div className="space-y-1">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Awaiting Data Feed</p>
-              <p className="text-[11px] font-bold text-slate-300 italic">Metrics will appear once the first order is placed.</p>
-            </div>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Awaiting Data Feed</p>
           </div>
         )}
       </section>
@@ -175,7 +160,7 @@ export default function AdminDashboard({ setActiveTab }) {
                 <div className="mb-6">
                   <div className="flex justify-between items-start mb-2 gap-4">
                     <p className="text-sm font-black text-slate-800 uppercase truncate">{order.item_name}</p>
-                    <button onClick={() => printReceipt(order)} className="p-2 bg-white rounded-lg border border-slate-200 text-slate-400 hover:text-emerald-600 transition-all">
+                    <button onClick={() => printReceipt?.(order)} className="p-2 bg-white rounded-lg border border-slate-200 text-slate-400 hover:text-emerald-600 transition-all">
                       <Printer size={16} />
                     </button>
                   </div>
@@ -184,13 +169,11 @@ export default function AdminDashboard({ setActiveTab }) {
                 <div className="space-y-4">
                   <div className="bg-white border border-slate-200 p-4 rounded-2xl">
                     <p className="text-[8px] font-black text-slate-400 uppercase mb-1 tracking-widest">Verification Data</p>
-                    {/* Priority 1: Check for a clickable URL */}
                     {order.receipt_url?.startsWith('http') ? (
                       <a href={order.receipt_url} target="_blank" rel="noreferrer" className="text-xs font-mono font-bold text-blue-600 hover:underline truncate block">
                         View Attachment ↗
                       </a>
                     ) : (
-                      /* Priority 2: Display the manual Reference Number (receipt_url or reference_number) */
                       <span className="text-xs font-mono font-bold text-emerald-700 break-all block">
                         {order.receipt_url || order.reference_number || "NO REF PROVIDED"}
                       </span>
@@ -199,7 +182,7 @@ export default function AdminDashboard({ setActiveTab }) {
                   <button
                     onClick={() => {
                       const confirmAction = window.confirm("Verify payment and move to pickup queue?");
-                      if (confirmAction) {
+                      if (confirmAction && typeof updateOrderStatusBulk === 'function') {
                         updateOrderStatusBulk([order.id], 'READY');
                       }
                     }}

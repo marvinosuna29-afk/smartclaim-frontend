@@ -27,11 +27,18 @@ export const AppProvider = ({ children }) => {
   const [officeStatus, setOfficeStatus] = useState('OPEN');
   const [loading, setLoading] = useState(false);
   const [privateAlert, setPrivateAlert] = useState(null);
-  const [currentQueue, setCurrentQueue] = useState(0);
   const [currentServingId, setCurrentServingId] = useState(() => {
     // We persist this so if the Admin refreshes, the queue doesn't reset to 0
     return localStorage.getItem('app_serving_id') || null;
   });
+
+
+  const currentQueue = useMemo(() => {
+    return orders.filter(o => {
+      const status = String(o.status || "").toUpperCase();
+      return status !== 'CLAIMED' && status !== 'CANCELLED';
+    }).length;
+  }, [orders.length]);
 
   const readyOrders = useMemo(() => {
     const currentUserId = String(user?.id || user?.user_id || "");
@@ -40,19 +47,7 @@ export const AppProvider = ({ children }) => {
       String(o.user_id || o.userId) === currentUserId &&
       String(o.status).toUpperCase() === 'READY'
     );
-    // 🛡️ Watch the ID strings, NOT the whole user object
-  }, [orders, user?.id, user?.user_id]);
-
-  useEffect(() => {
-    // We only count orders that haven't been CLAIMED yet.
-    // This matches the logic in QueueMonitor.jsx
-    const waitingCount = orders.filter(o => {
-      const status = String(o.status || "").toUpperCase();
-      return status !== 'CLAIMED' && status !== 'CANCELLED';
-    }).length;
-
-    setCurrentQueue(waitingCount);
-  }, [orders]);
+  }, [orders.length, user?.id]);
 
   useEffect(() => {
     localStorage.setItem('app_orders', JSON.stringify(orders));

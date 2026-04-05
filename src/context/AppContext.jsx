@@ -1,3 +1,4 @@
+// Build Version: 1.0.2 - Loop Fix Applied
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { io } from 'socket.io-client';
 
@@ -33,23 +34,13 @@ export const AppProvider = ({ children }) => {
   });
 
   const readyOrders = useMemo(() => {
-    // 1. Extract IDs into strings once to avoid deep-object comparisons
-    const currentUserId = String(user?.user_id || user?.id || "");
-
-    // 2. Immediate exit if no user is logged in
+    const currentUserId = String(user?.id || user?.user_id || "");
     if (!currentUserId) return [];
-
-    // 3. Perform the filter
-    return orders.filter(o => {
-      const oUserId = String(o.user_id || o.userId || "");
-      const oStatus = String(o.status || "").toUpperCase().trim();
-
-      return oUserId === currentUserId && oStatus === 'READY';
-    });
-
-    // 🛡️ CRITICAL FIX: Only watch the specific ID strings. 
-    // If you watch the whole 'user' object, and 'setUser' is called elsewhere, 
-    // this memo will fire, potentially triggering a re-render loop.
+    return orders.filter(o =>
+      String(o.user_id || o.userId) === currentUserId &&
+      String(o.status).toUpperCase() === 'READY'
+    );
+    // 🛡️ Watch the ID strings, NOT the whole user object
   }, [orders, user?.id, user?.user_id]);
 
   useEffect(() => {
@@ -187,8 +178,9 @@ export const AppProvider = ({ children }) => {
     const events = {
       office_status_updated: setOfficeStatus,
       queue_updated: (data) => {
-        const nextNumber = String(data.currentNumber || data.nextId || "0");
-        setCurrentServingId(prev => (prev !== nextNumber ? nextNumber : prev));
+        const nextId = String(data.currentNumber || data.nextId || "0");
+        // 🛡️ NO localStorage.setItem here! Just the state update.
+        setCurrentServingId(prev => (prev !== nextId ? nextId : prev));
       },
       order_created: (newOrder) => {
         setOrders(prev => {

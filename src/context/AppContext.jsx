@@ -219,7 +219,29 @@ export const AppProvider = ({ children }) => {
       return { success: false };
     },
 
-    // --- ORDERS & SCANNING (The Fixed Logic) ---
+    // --- ORDERS & SCANNING ---
+    addOrder: async (orderData) => {
+      const currentId = user?.id || user?.user_id;
+      const r = await api('/api/orders', 'POST', { ...orderData, userId: currentId });
+      if (r.ok) {
+        await refreshData();
+        return { success: true };
+      }
+      return { success: false, message: r.data?.message || "Failed to place order" };
+    },
+
+    submitReceipt: async (orderId, referenceNumber) => {
+      const currentId = user?.id || user?.user_id;
+      const response = await api('/api/orders/status-update', 'PATCH', {
+        ids: [orderId],
+        status: 'AWAITING_VERIFICATION',
+        receipt_url: referenceNumber,
+        userId: currentId
+      });
+      if (response.ok) { await refreshData(); return { success: true }; }
+      return { success: false };
+    },
+
     processScanClaim: async (orderIds, adminId) => {
       const normalizedScannedIds = Array.isArray(orderIds) ? orderIds.map(id => String(id)) : [String(orderIds)];
       const response = await api('/api/orders/scan-claim', 'POST', { orderIds: normalizedScannedIds, adminId });
@@ -229,7 +251,6 @@ export const AppProvider = ({ children }) => {
           const updatedOrders = prevOrders.map(o =>
             normalizedScannedIds.includes(String(o.id)) ? { ...o, status: 'CLAIMED' } : o
           );
-          // Sync items based on the updated order status
           setItems(prevItems => prevItems.map(item => {
             const matching = updatedOrders.filter(o =>
               normalizedScannedIds.includes(String(o.id)) && (o.item_id === item.id || o.item_name === item.name)
@@ -281,7 +302,6 @@ export const AppProvider = ({ children }) => {
     },
 
     printReceipt: async (order) => {
-      // (Your existing Bluetooth/Thermal Canvas logic here)
       console.log("Printing...", order.id);
       return { success: true };
     }

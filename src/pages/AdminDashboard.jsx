@@ -98,14 +98,49 @@ export default function AdminDashboard({ setActiveTab }) {
       </div>
 
       {/* PERFORMANCE METRICS */}
-      <section className="bg-white border border-slate-100 rounded-[3.5rem] p-8 md:p-10 shadow-sm no-print">
-        <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
-          <h3 className="text-2xl font-black text-slate-900 flex items-center gap-3 uppercase tracking-tighter">
-            <div className="p-2 bg-emerald-100 text-emerald-600 rounded-xl"><TrendingUp size={20} /></div>
-            Performance Metrics
-          </h3>
+      <section className="bg-white border border-slate-100 rounded-[3.5rem] p-8 md:p-10 shadow-sm no-print relative overflow-hidden">
+        {/* Background Decorative Element */}
+        <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full -mr-16 -mt-16 blur-3xl" />
+
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4 relative z-10">
+          <div>
+            <h3 className="text-2xl font-black text-slate-900 flex items-center gap-3 uppercase tracking-tighter">
+              <div className="p-2 bg-emerald-100 text-emerald-600 rounded-xl shadow-sm">
+                <TrendingUp size={20} />
+              </div>
+              Performance Metrics
+            </h3>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-2 flex items-center gap-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              Real-time System Throughput
+            </p>
+          </div>
+
+          {/* Quick Stats Summary */}
+          <div className="flex gap-2">
+            <div className="px-4 py-2 bg-slate-50 rounded-2xl border border-slate-100">
+              <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Data Points</p>
+              <p className="text-sm font-black text-slate-900">{orders?.length || 0}</p>
+            </div>
+          </div>
         </div>
-        <OrderAnalytics orders={orders} />
+
+        {/* The Fix: Analytics Guard */}
+        {orders && orders.length > 0 ? (
+          <div className="animate-in fade-in slide-in-from-bottom-4 duration-1000">
+            <OrderAnalytics orders={orders} />
+          </div>
+        ) : (
+          <div className="py-24 text-center space-y-4 bg-slate-50/50 rounded-[2.5rem] border-2 border-dashed border-slate-100">
+            <div className="mx-auto w-12 h-12 bg-white rounded-2xl shadow-sm flex items-center justify-center text-slate-200">
+              <Package size={24} />
+            </div>
+            <div className="space-y-1">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Awaiting Data Feed</p>
+              <p className="text-[11px] font-bold text-slate-300 italic">Metrics will appear once the first order is placed.</p>
+            </div>
+          </div>
+        )}
       </section>
 
       {/* VERIFICATION QUEUE */}

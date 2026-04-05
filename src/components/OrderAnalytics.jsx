@@ -7,6 +7,14 @@ import {
 import { Printer, Loader2 } from 'lucide-react';
 
 export default function OrderAnalytics({ orders = [] }) {
+  // Guard against empty data to prevent "l is not a function"
+  if (!orders || orders.length === 0) {
+    return (
+      <div className="p-20 text-center bg-slate-50 rounded-[3rem] border-2 border-dashed border-slate-200">
+        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">No Audit Data Available</p>
+      </div>
+    );
+  }
   const [showPrintVersion, setShowPrintVersion] = useState(false);
   const containerRef = useRef(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });

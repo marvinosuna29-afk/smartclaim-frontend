@@ -168,6 +168,42 @@ export default function StudentPortal({ needsVerification, activeTab, myOrders: 
       {/* 🏠 VIEW 1: DASHBOARD (Active when tab is 'dashboard' or undefined) */}
       {(activeTab === 'dashboard' || !activeTab) && (
         <>
+          {/* ✨ DYNAMIC WELCOME BANNER */}
+          <div className="px-4 pt-4">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-emerald-500 font-black uppercase text-[10px] tracking-[0.3em]">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                  </span>
+                  System Online • {new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                </div>
+                <h1 className="text-5xl md:text-7xl font-black text-slate-900 tracking-tighter uppercase leading-[0.85]">
+                  Hello, <br />
+                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-slate-900 to-slate-500">
+                    {user?.user_metadata?.full_name?.split(' ')[0] || 'Student'}
+                  </span>
+                </h1>
+              </div>
+
+              <div className="flex items-center gap-4 bg-white p-2 rounded-[2rem] border border-slate-100 shadow-sm">
+                <div className="px-6 py-3 bg-slate-900 rounded-[1.5rem] text-center">
+                  <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Active Requests</p>
+                  <p className="text-xl font-black text-white leading-none">
+                    {readyOrders.length + verifyingOrders.length + pendingPayment.length}
+                  </p>
+                </div>
+                <div className="pr-6">
+                  <p className="text-[10px] font-black text-slate-900 uppercase">Portal Status</p>
+                  <p className={`text-[9px] font-bold uppercase tracking-widest ${officeStatus === 'CLOSED' ? 'text-red-500' : 'text-emerald-500'}`}>
+                    {officeStatus === 'CLOSED' ? 'Restricted Access' : 'Full Access'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* 🎟️ HERO / QUEUE SECTION */}
           {readyOrders.length === 0 ? (
             <QueueMonitor />
@@ -440,9 +476,6 @@ export default function StudentPortal({ needsVerification, activeTab, myOrders: 
             {/* QR & Info Section */}
             <div className="p-10 text-center space-y-8">
               <div className="bg-white p-6 rounded-[3rem] inline-block border-2 border-slate-50 shadow-inner">
-                {/* ✅ THE FIX: We use only String(selectedOrderForQR.id) 
-                   This ensures the scanner only processes THIS specific item.
-                */}
                 <QRCodeSVG
                   value={String(selectedOrderForQR.id)}
                   size={180}

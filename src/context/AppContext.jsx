@@ -62,11 +62,12 @@ export const AppProvider = ({ children }) => {
 
   const normalizeUser = useCallback((u) => {
     if (!u) return null;
-    const id = u.user_id || u.id;
+    // Ensure we prioritize the DB user_id (e.g., Student Number or Primary Key)
+    const actualId = String(u.user_id || u.id || "");
     return {
       ...u,
-      id,
-      user_id: id,
+      id: actualId,
+      user_id: actualId,
       name: u.full_name || u.name || "Unknown User",
       role: u.role?.toLowerCase() || 'student',
       is_verified: Number(u.is_verified) === 1
@@ -243,7 +244,9 @@ export const AppProvider = ({ children }) => {
       const currentId = user?.id || user?.user_id;
       const r = await api('/api/orders', 'POST', { ...orderData, userId: currentId });
       if (r.ok) {
-        await refreshData();
+        // 🚀 NEW: Add the REAL order from the server response immediately
+        const serverOrder = r.data.order || r.data;
+        setOrders(prev => [serverOrder, ...prev]);
         return { success: true };
       }
       return { success: false, message: r.data?.message || "Failed to place order" };

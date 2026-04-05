@@ -149,6 +149,8 @@ export default function StudentPortal({ needsVerification, activeTab, myOrders: 
     }
   };
 
+  console.log("Current User ID:", user?.id, "Ready Orders:", readyOrders);
+
   return (
     <div className="max-w-7xl mx-auto space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-1000 pb-20">
 

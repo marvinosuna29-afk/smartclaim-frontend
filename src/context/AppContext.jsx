@@ -234,11 +234,11 @@ export const AppProvider = ({ children }) => {
       return r.ok ? { success: true, nextId: r.data.currentNumber } : { success: false };
     },
     updateOrderStatusBulk: async (ids, status) => {
-      // 1. Ensure IDs are strings for the API (some backends are picky)
       const normalizedIds = Array.isArray(ids) ? ids.map(id => String(id)) : [String(ids)];
       const upperStatus = status.toUpperCase();
 
-      const r = await api('/api/orders/status-update', 'PATCH', {
+      // 🚩 CHANGE 'PATCH' TO 'POST' HERE
+      const r = await api('/api/orders/status-update', 'POST', {
         ids: normalizedIds,
         status: upperStatus,
         adminId: stableUserId
@@ -246,24 +246,14 @@ export const AppProvider = ({ children }) => {
 
       if (r.ok) {
         setOrders(prev => {
-          // 2. Defensive check: if prev isn't an array, don't crash
           if (!Array.isArray(prev)) return [];
-
           return prev.map(o => {
-            // 3. Match against multiple ID formats (id vs _id) 
-            // to ensure the UI actually flips the status color
             const match = normalizedIds.includes(String(o.id || o._id));
-
-            return match
-              ? { ...o, status: upperStatus }
-              : o;
+            return match ? { ...o, status: upperStatus } : o;
           });
         });
 
-        // 4. Optional: Force a refresh after a small delay to ensure 
-        // inventory levels also sync up globally
         setTimeout(() => refreshData(), 500);
-
         return { success: true };
       }
 

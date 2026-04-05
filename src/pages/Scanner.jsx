@@ -51,7 +51,9 @@ export default function Scanner() {
 
     setIsProcessing(true);
 
-    // 1. Parse IDs (Handles single scans or comma-separated batch scans)
+    // Toggle this to TRUE when your printing function is ready
+    const SHOULD_PRINT = false;
+
     const idArray = [...new Set(cleanCode.split(/[,\s]+/).filter(id => id.length > 0))];
 
     if (idArray.length === 0) {
@@ -64,33 +66,36 @@ export default function Scanner() {
     try {
       const adminId = user?.id || user?.user_id;
 
-      // 2. Call the action from AppContext
+      // 1. Backend Sync
       const result = await processScanClaim(idArray, adminId);
 
       if (result.success) {
-        // 3. PRINTING: Find the details of the orders we just claimed
-        // We use the 'orders' array from context which was just updated by processScanClaim
-        const claimedOrders = (orders || []).filter(o => idArray.includes(String(o.id)));
+        // 2. Conditional Printing Logic (Ready for implementation)
+        if (SHOULD_PRINT && typeof printReceipt === 'function') {
+          const claimedOrders = (orders || []).filter(o => idArray.includes(String(o.id)));
 
-        for (const order of claimedOrders) {
-          // Even if printReceipt is just a console.log for now, we call it
-          await printReceipt(order).catch(err => console.error("Print failed:", err));
+          // Using Promise.allSettled so one failed print doesn't crash the whole scan
+          await Promise.allSettled(
+            claimedOrders.map(order => printReceipt(order))
+          );
         }
 
-        // 4. QUEUE MGMT: Check if incrementQueue exists before calling
+        // 3. Queue Management
         if (typeof incrementQueue === 'function') {
           await incrementQueue(adminId);
         }
 
+        // 4. Success State
         setScanResult({
           success: true,
           message: `AUTHORIZED: ${idArray.length} Record(s) Processed`,
           details: idArray.join(", ")
         });
-        playFeedback(true);
-        setManualId(''); // Clear input only on success
 
-        // Auto-reset result after 3 seconds to return to "Standby"
+        playFeedback(true);
+        setManualId('');
+
+        // Auto-reset
         setTimeout(() => setScanResult(null), 3000);
       } else {
         setScanResult({

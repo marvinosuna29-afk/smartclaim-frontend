@@ -49,12 +49,20 @@ export default function AdminDashboard({ setActiveTab }) {
   }, [items]); // Use 'items' instead of 'items.length'
 
   const totalUnits = useMemo(() => {
-    if (!items || !Array.isArray(items)) return 0;
+    // 1. Safety check for empty or null items
+    if (!items || items.length === 0) return 0;
+
     return items.reduce((acc, item) => {
+      // 2. Ensure item and sizes exist
+      if (!item) return acc;
+
       const sizesObj = (item.sizes && typeof item.sizes === 'object') ? item.sizes : {};
+
+      // 3. Inner reduce (This one was actually correct, but we'll keep it safe)
       const itemTotal = Object.values(sizesObj).reduce((a, b) => a + (Number(b) || 0), 0);
+
       return acc + itemTotal;
-    });
+    }, 0); // <--- CRITICAL: Added the 0 initial value here
   }, [items]);
 
   // 3. STATS CARDS: Watch the derived memo results directly

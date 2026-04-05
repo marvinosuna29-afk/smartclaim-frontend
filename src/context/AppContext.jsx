@@ -214,6 +214,10 @@ export const AppProvider = ({ children }) => {
       }
       return { success: false, message: r.data?.message };
     },
+    // 🚨 ADD THIS ALIAS BELOW IT
+    updateStock: async (itemId, newStock) => {
+      return actions.updateItemStock(itemId, newStock);
+    },
     toggleLowStock: async (itemId) => {
       const r = await api('/api/items/toggle-low-stock', 'PATCH', { itemId, adminId: stableUserId });
       if (r.ok) {

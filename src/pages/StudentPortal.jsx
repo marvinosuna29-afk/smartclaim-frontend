@@ -204,41 +204,47 @@ export default function StudentPortal({ needsVerification, activeTab, myOrders: 
             </div>
           </div>
 
-          {/* 🎟️ HERO / QUEUE SECTION */}
-          {readyOrders.length === 0 ? (
-            <QueueMonitor />
-          ) : (
-            <div className="relative overflow-hidden bg-emerald-600 rounded-[3rem] p-10 md:p-14 text-white shadow-2xl animate-in zoom-in duration-500">
-              <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-10">
-                <div className="space-y-4 text-center md:text-left">
-                  <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-white/20 text-white rounded-full border border-white/30 animate-pulse">
-                    <Zap size={14} fill="currentColor" />
-                    <span className="text-[10px] font-black uppercase tracking-widest">Collection Ticket Active</span>
-                  </div>
-                  <h1 className="text-5xl md:text-7xl font-black tracking-tighter uppercase leading-none">
-                    Ready for <br /><span className="text-emerald-100 underline decoration-white/30">Collection</span>
-                  </h1>
-                  <p className="text-emerald-100/80 font-bold text-sm uppercase tracking-widest">
-                    {readyOrders.length} {readyOrders.length > 1 ? 'Items' : 'Item'} Authorized for Pickup
-                  </p>
-                </div>
+          {/* 🎟️ HERO / QUEUE SECTION - STACKED FOR PERSISTENCE */}
+          <div className="space-y-6">
 
-                <button
-                  onClick={() => {
-                    setSelectedOrderForQR(readyOrders[0]);
-                    setShowQRModal(true);
-                  }}
-                  className="group relative active:scale-95 transition-all"
-                >
-                  <div className="absolute inset-0 bg-white/40 blur-3xl group-hover:bg-white/60 transition-all duration-700" />
-                  <div className="relative bg-white text-emerald-600 rounded-[4rem] px-12 py-10 flex flex-col items-center shadow-2xl border-4 border-emerald-500/20">
-                    <QrCode size={64} strokeWidth={2.5} className="group-hover:rotate-12 transition-transform duration-500" />
-                    <p className="text-[10px] font-black uppercase tracking-[0.4em] mt-6">Open Claim Ticket</p>
+            {/* 1. READY BANNER: Shows ONLY if readyOrders has items */}
+            {readyOrders.length > 0 && (
+              <div className="relative overflow-hidden bg-emerald-600 rounded-[3rem] p-10 md:p-14 text-white shadow-2xl animate-in zoom-in duration-500">
+                <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-10">
+                  <div className="space-y-4 text-center md:text-left">
+                    <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-white/20 text-white rounded-full border border-white/30 animate-pulse">
+                      <Zap size={14} fill="currentColor" />
+                      <span className="text-[10px] font-black uppercase tracking-widest">Collection Ticket Active</span>
+                    </div>
+                    <h1 className="text-5xl md:text-7xl font-black tracking-tighter uppercase leading-none">
+                      Ready for <br /><span className="text-emerald-100 underline decoration-white/30">Collection</span>
+                    </h1>
+                    <p className="text-emerald-100/80 font-bold text-sm uppercase tracking-widest">
+                      {readyOrders.length} {readyOrders.length > 1 ? 'Items' : 'Item'} Authorized for Pickup
+                    </p>
                   </div>
-                </button>
+
+                  <button
+                    onClick={() => {
+                      setSelectedOrderForQR(readyOrders[0]);
+                      setShowQRModal(true);
+                    }}
+                    className="group relative active:scale-95 transition-all"
+                  >
+                    <div className="absolute inset-0 bg-white/40 blur-3xl group-hover:bg-white/60 transition-all duration-700" />
+                    <div className="relative bg-white text-emerald-600 rounded-[4rem] px-12 py-10 flex flex-col items-center shadow-2xl border-4 border-emerald-500/20">
+                      <QrCode size={64} strokeWidth={2.5} className="group-hover:rotate-12 transition-transform duration-500" />
+                      <p className="text-[10px] font-black uppercase tracking-[0.4em] mt-6">Open Claim Ticket</p>
+                    </div>
+                  </button>
+                </div>
               </div>
-            </div>
-          )}
+            )}
+
+            {/* 2. QUEUE MONITOR: Always rendered, no longer hidden by the banner */}
+            <QueueMonitor />
+
+          </div>
 
           {/* 📢 ANNOUNCEMENTS */}
           {announcements.length > 0 ? (

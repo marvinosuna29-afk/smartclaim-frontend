@@ -12,10 +12,15 @@ export default function OrderAnalytics({ orders = [] }) {
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
 
   // 1. Guard against null/empty orders early
-  if (!orders || orders.length === 0) {
+  if (!orders) return null; // Safety break
+
+  if (orders.length === 0) {
     return (
-      <div className="p-20 text-center bg-slate-50 rounded-[3rem] border-2 border-dashed border-slate-200">
-        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">No Audit Data Available</p>
+      <div className="p-20 text-center bg-slate-50 rounded-[3rem] border-2 border-dashed border-slate-200 animate-pulse">
+        <div className="flex flex-col items-center gap-2">
+          <Loader2 className="w-5 h-5 text-slate-300 animate-spin" />
+          <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.3em]">Syncing Audit Feed...</p>
+        </div>
       </div>
     );
   }
@@ -143,7 +148,7 @@ export default function OrderAnalytics({ orders = [] }) {
             </div>
             <h3 className="text-3xl font-black text-slate-900">{avgWaitTime} <span className="text-sm font-bold text-slate-400">mins</span></h3>
           </div>
-          
+
           <div className="bg-slate-50 border border-slate-100 p-6 rounded-[2rem]">
             <div className="flex items-center gap-3 mb-2">
               <Zap size={16} className="text-amber-500" />
@@ -214,7 +219,7 @@ export default function OrderAnalytics({ orders = [] }) {
             </div>
           </header>
           <div className="mb-10 flex justify-center border p-4 rounded-xl">
-             <RenderChart width={650} height={250} isPrinting={true} />
+            <RenderChart width={650} height={250} isPrinting={true} />
           </div>
           <table className="w-full text-sm">
             <tr className="border-b-2 border-slate-900 uppercase font-black text-[10px]">

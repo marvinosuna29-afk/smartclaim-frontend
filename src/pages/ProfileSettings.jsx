@@ -21,7 +21,7 @@ export default function ProfileSettings() {
 
   // OTP Modal State
   // types: 'profile', 'password', 'email_verify', 'discord'
-  const [otpModal, setOtpModal] = useState({ show: false, code: '', type: null }); 
+  const [otpModal, setOtpModal] = useState({ show: false, code: '', type: null });
   const [isVerifying, setIsVerifying] = useState(false);
   const [status, setStatus] = useState({ type: '', msg: '' });
 
@@ -45,7 +45,7 @@ export default function ProfileSettings() {
   const handleDiscordRequest = async (e) => {
     e.preventDefault();
     if (!discordId) return notify('error', 'Please enter your Discord User ID.');
-    
+
     setIsRequestingDiscord(true);
     try {
       // Calling your new backend route
@@ -53,7 +53,7 @@ export default function ProfileSettings() {
         userId: user.id,
         discordId: discordId
       });
-      
+
       if (res.data.success) {
         setOtpModal({ show: true, code: '', type: 'discord' });
         notify('success', 'Check your Discord DMs!');
@@ -108,19 +108,25 @@ export default function ProfileSettings() {
     setIsVerifying(true);
     const cleanCode = otpModal.code.trim();
 
-    // Handle Discord Verification separately
+    // --- 🎮 CASE 1: DISCORD VERIFICATION ---
     if (otpModal.type === 'discord') {
       try {
         const res = await axios.post('https://smartclaim-backend.onrender.com/api/auth/discord/verify-code', {
           userId: user.id,
           code: cleanCode
         });
+
         if (res.data.success) {
           setOtpModal({ show: false, code: '', type: null });
           notify('success', 'Discord Verified Successfully!');
-          // Optional: Force a profile refresh here if your context doesn't auto-update
+
+          // 🔥 CRITICAL: Update the global state so the UI badges flip to green
+          if (typeof refreshUser === 'function') {
+            await refreshUser();
+          }
         }
       } catch (err) {
+        setOtpModal(prev => ({ ...prev, code: '' })); // Clear the input on error
         notify('error', err.response?.data?.message || 'Invalid Discord code.');
       } finally {
         setIsVerifying(false);
@@ -128,21 +134,49 @@ export default function ProfileSettings() {
       return;
     }
 
-    // Standard Email/Profile OTP
+    // --- 📧 CASE 2: STANDARD EMAIL/PROFILE/PASSWORD ---
     const result = await verifyOTP(cleanCode, {
       newEmail: otpModal.type === 'profile' ? formData.email : null,
       newPassword: otpModal.type === 'password' ? passwords.next : null,
       full_name: formData.full_name
     });
 
-    setIsVerifying(false);
     if (result.success) {
       setOtpModal({ show: false, code: '', type: null });
       setPasswords({ next: '', confirm: '' });
       notify('success', 'Action Verified & Updated!');
+
+      // Backup refresh to ensure ProfileSettings reflects the name/email changes
+      if (typeof refreshUser === 'function') {
+        await refreshUser();
+      }
     } else {
       setOtpModal(prev => ({ ...prev, code: '' }));
       notify('error', result.message || 'Incorrect code.');
+    }
+
+    setIsVerifying(false);
+  };
+
+  const handleUnlinkDiscord = async () => {
+    if (!window.confirm("Are you sure you want to unlink your Discord? Notifications will stop.")) return;
+
+    try {
+      const res = await axios.post('https://smartclaim-backend.onrender.com/api/auth/discord/unlink', {
+        userId: user.id
+      });
+
+      if (res.data.success) {
+        // refreshUser is likely exported from your useApp() hook
+        if (typeof updateProfile === 'function') {
+          // If you don't have a dedicated refreshUser, 
+          // fetching the profile again works too
+          window.location.reload();
+        }
+        notify('success', 'Discord unlinked successfully.');
+      }
+    } catch (err) {
+      notify('error', 'Failed to unlink.');
     }
   };
 
@@ -202,55 +236,77 @@ export default function ProfileSettings() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         <div className="lg:col-span-8 space-y-8">
 
-          {/* 🎮 NEW SECTION: DISCORD VERIFICATION */}
-          <div className="bg-white p-8 md:p-10 rounded-[3rem] border border-slate-100 shadow-xl shadow-slate-200/40 relative overflow-hidden group">
-             {/* Discord Background Decor */}
-             <MessageSquare className="absolute -right-4 -bottom-4 text-slate-50 group-hover:text-indigo-50 transition-colors" size={140} />
-             
-             <div className="relative z-10">
-                <h3 className="text-sm font-black uppercase tracking-widest mb-8 text-slate-800 flex items-center gap-2">
-                  <MessageSquare size={18} className="text-indigo-500" /> Discord Integration
-                </h3>
-                
-                {user?.is_verified ? (
-                  <div className="flex items-center gap-4 bg-indigo-50 p-6 rounded-3xl border border-indigo-100">
-                    <div className="w-12 h-12 bg-indigo-500 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-200">
-                       <CheckCircle size={24} />
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Linked Account</p>
-                      <p className="font-bold text-slate-700">Verified Discord ID: {user.discord_id || discordId}</p>
-                    </div>
+          {/* 🎮 DISCORD INTEGRATION SECTION */}
+          <div className="relative z-10">
+            <h3 className="text-sm font-black uppercase tracking-widest mb-8 text-slate-800 flex items-center gap-2">
+              <MessageSquare size={18} className="text-indigo-500" /> Discord Integration
+            </h3>
+
+            {/* Check specifically if the DISCORD ID is linked and verified */}
+            {user?.discord_id && user?.is_verified ? (
+              <div className="flex flex-col md:flex-row items-center justify-between gap-6 bg-indigo-50 p-6 rounded-3xl border border-indigo-100 animate-in zoom-in-95 duration-300">
+                <div className="flex items-center gap-4">
+                  <div className="w-14 h-14 bg-indigo-500 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-200">
+                    <CheckCircle size={28} />
                   </div>
-                ) : (
-                  <form onSubmit={handleDiscordRequest} className="space-y-6">
-                    <div className="space-y-2">
-                      <div className="flex justify-between items-end px-2">
-                        <label className="text-[10px] font-black text-slate-400 uppercase">Discord User ID</label>
-                        <a href="https://support.discord.com/hc/en-us/articles/206346498" target="_blank" rel="noreferrer" className="text-[9px] font-black text-indigo-500 hover:underline flex items-center gap-1 uppercase tracking-tighter">
-                          How to find ID <ExternalLink size={10} />
-                        </a>
-                      </div>
-                      <input
-                        type="text"
-                        placeholder="e.g. 445058896701161483"
-                        value={discordId}
-                        onChange={(e) => setDiscordId(e.target.value)}
-                        className="w-full px-6 py-4 bg-slate-50 rounded-2xl border-2 border-transparent focus:border-indigo-500 outline-none font-bold placeholder:text-slate-300 transition-all"
-                      />
-                    </div>
-                    <button 
-                      disabled={isRequestingDiscord} 
-                      className="bg-indigo-600 text-white px-8 py-4 rounded-xl font-black uppercase text-[10px] flex items-center gap-3 hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100"
+                  <div>
+                    <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Status: Fully Linked</p>
+                    <p className="font-bold text-slate-700 text-lg tracking-tight">@{user.discord_id}</p>
+                  </div>
+                </div>
+
+                {/* UNLINK BUTTON: Crucial for UX */}
+                <button
+                  onClick={handleUnlinkDiscord}
+                  className="group flex items-center gap-2 px-5 py-3 rounded-xl bg-white border border-indigo-100 text-red-500 font-black text-[10px] uppercase tracking-widest hover:bg-red-50 hover:border-red-200 transition-all"
+                >
+                  <X size={14} className="group-hover:rotate-90 transition-transform" />
+                  Unlink Account
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleDiscordRequest} className="space-y-6">
+                <div className="space-y-2">
+                  <div className="flex justify-between items-end px-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase">Discord User ID</label>
+                    <a
+                      href="https://support.discord.com/hc/en-us/articles/206346498"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[9px] font-black text-indigo-500 hover:text-indigo-700 flex items-center gap-1 uppercase tracking-tighter transition-colors"
                     >
-                      {isRequestingDiscord ? <Loader2 className="animate-spin" size={14} /> : <Send size={14} />} Link Discord Account
-                    </button>
-                    <p className="text-[9px] font-bold text-slate-400 leading-relaxed uppercase italic">
-                      * Must share a mutual server with the SmartClaim bot to receive the DM.
-                    </p>
-                  </form>
-                )}
-             </div>
+                      How to find ID <ExternalLink size={10} />
+                    </a>
+                  </div>
+
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="e.g. 445058896701161483"
+                      value={discordId}
+                      onChange={(e) => setDiscordId(e.target.value.replace(/\D/g, ''))} // Auto-strip non-numbers
+                      className="w-full px-6 py-4 bg-slate-50 rounded-2xl border-2 border-transparent focus:border-indigo-500 focus:bg-white outline-none font-bold placeholder:text-slate-300 transition-all"
+                    />
+                    <MessageSquare className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-200" size={20} />
+                  </div>
+                </div>
+
+                <div className="flex flex-col md:flex-row items-center gap-4">
+                  <button
+                    type="submit"
+                    disabled={isRequestingDiscord || !discordId}
+                    className="w-full md:w-auto bg-indigo-600 text-white px-8 py-4 rounded-xl font-black uppercase text-[10px] flex items-center justify-center gap-3 hover:bg-indigo-700 disabled:opacity-50 disabled:grayscale transition-all shadow-lg shadow-indigo-100"
+                  >
+                    {isRequestingDiscord ? <Loader2 className="animate-spin" size={14} /> : <Send size={14} />}
+                    Send Verification Code
+                  </button>
+
+                  <p className="text-[9px] font-bold text-slate-400 leading-relaxed uppercase italic max-w-xs text-center md:text-left">
+                    * Ensure your DMs are open and you share a server with the bot.
+                  </p>
+                </div>
+              </form>
+            )}
           </div>
 
           {/* 👤 SECTION 1: PERSONAL INFO */}
@@ -288,7 +344,7 @@ export default function ProfileSettings() {
 
           {/* 🔐 SECTION 2: SECURITY & PASSWORD */}
           <div className="bg-white p-8 md:p-10 rounded-[3rem] border border-slate-100 shadow-xl shadow-slate-200/40">
-             {/* ... Your Existing Password JSX ... */}
+            {/* ... Your Existing Password JSX ... */}
             <h3 className="text-sm font-black uppercase tracking-widest mb-8 text-slate-800 flex items-center gap-2">
               <Key size={18} className="text-emerald-500" /> Secure Password Change
             </h3>

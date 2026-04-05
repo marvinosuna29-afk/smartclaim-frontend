@@ -87,6 +87,19 @@ export const AppProvider = ({ children }) => {
     };
   }, []);
 
+  const refreshUser = useCallback(async () => {
+    const currentId = user?.id || user?.user_id;
+    if (!currentId) return;
+
+    // We fetch the latest user data from your existing login/me endpoint
+    // If you don't have a /me endpoint, you can use /api/admin/users/${currentId}
+    const r = await api(`/api/auth/user/${currentId}`);
+
+    if (r.ok && r.data) {
+      setUser(normalizeUser(r.data)); // This updates State + LocalStorage
+    }
+  }, [user?.id, normalizeUser]);
+
   // --- CORE DATA SYNC ---
   const refreshData = useCallback(async () => {
     const currentId = user?.id || user?.user_id;
@@ -375,7 +388,7 @@ export const AppProvider = ({ children }) => {
   return (
     <AppContext.Provider value={{
       user, users, items, orders, announcements, officeStatus, loading, privateAlert,
-      currentQueue, readyOrders,
+      currentQueue, readyOrders, refreshUser,
       setUser, refreshData, ...actions
     }}>
       {children}

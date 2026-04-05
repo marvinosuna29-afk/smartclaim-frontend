@@ -18,6 +18,7 @@ export default function StudentPortal({ needsVerification, activeTab, myOrders: 
     announcements = [],
     submitReceipt,
     loading,
+    unlinkDiscord,
     myOrders: contextOrders = [],
     readyOrders: contextReadyOrders = []
   } = useApp();
@@ -130,7 +131,6 @@ export default function StudentPortal({ needsVerification, activeTab, myOrders: 
   };
 
   // --- 5. THE GATE (Conditional Rendering) ---
-  // We place this AFTER all hooks but BEFORE the main JSX.
   if (needsVerification && user?.role?.toLowerCase() !== 'admin') {
     return (
       <div className="flex flex-col items-center justify-center min-h-[70vh] p-8 text-center animate-in fade-in duration-700">
@@ -140,13 +140,34 @@ export default function StudentPortal({ needsVerification, activeTab, myOrders: 
             <Clock size={64} strokeWidth={1.5} className="animate-pulse" />
           </div>
         </div>
-        <div className="max-w-sm space-y-4">
+        <div className="max-w-sm space-y-6"> {/* Increased space-y */}
           <h2 className="text-3xl font-black text-slate-900 uppercase tracking-tighter leading-none">Awaiting Entry</h2>
           <p className="text-slate-400 font-bold text-sm leading-relaxed">
             Your credentials have been submitted. The administration is currently verifying your student profile.
           </p>
-          <div className="inline-flex items-center gap-2 px-6 py-2 bg-slate-900 text-white rounded-full text-[10px] font-black uppercase tracking-[0.2em]">
-            Status: Pending Admin Approval
+
+          <div className="flex flex-col gap-3">
+            <div className="inline-flex items-center justify-center gap-2 px-6 py-2 bg-slate-900 text-white rounded-full text-[10px] font-black uppercase tracking-[0.2em]">
+              Status: Pending Admin Approval
+            </div>
+
+            {/* --- THE ESCAPE HATCH BUTTON --- */}
+            <button
+              onClick={async () => {
+                if (window.confirm("Unlink Discord and try verifying again?")) {
+                  const result = await unlinkDiscord();
+                  if (result.success) {
+                    // The refreshUser() inside the action will handle the state update
+                    alert("Discord unlinked. You can now try again.");
+                  } else {
+                    alert(result.message);
+                  }
+                }
+              }}
+              className="text-[10px] font-black text-red-500 uppercase tracking-widest hover:underline mt-4"
+            >
+              Wrong Discord Account? Click here to Unlink
+            </button>
           </div>
         </div>
       </div>

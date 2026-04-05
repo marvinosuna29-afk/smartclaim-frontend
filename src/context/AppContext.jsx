@@ -139,6 +139,15 @@ export const AppProvider = ({ children }) => {
     requestOTP: async (targetEmail) => {
       return await api('/api/auth/request-otp', 'POST', { email: targetEmail, userId: stableUserId });
     },
+    unlinkDiscord: async () => {
+      const r = await api('/api/auth/discord/unlink', 'POST', { userId: stableUserId });
+      if (r.ok) {
+        // Refresh the local user state to reflect they are no longer verified
+        await refreshUser();
+        return { success: true };
+      }
+      return { success: false, message: r.data?.message || "Failed to unlink" };
+    },
     verifyOTP: async (otp, payload = {}) => {
       const r = await api('/api/auth/verify-otp', 'POST', { otp: String(otp).trim(), ...payload, userId: stableUserId });
       if (r.ok) {

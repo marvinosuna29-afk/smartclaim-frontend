@@ -1,20 +1,17 @@
 import React, { useMemo } from 'react';
 import { useApp } from "../../context/AppContext";
-import { Activity, Users, Clock, ShieldCheck, AlertCircle, Zap } from 'lucide-react';
+import { Activity, Users, Clock, AlertCircle, Zap } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 
 export default function QueueMonitor() {
     const { orders = [], user, currentServingId } = useApp();
 
-    // 1. NORMALIZE USER ID (Prevents "invisible" mismatches between string/number)
+    // 1. ALL HOOKS AT THE TOP (No early returns before these)
     const currentUserId = String(user?.id || user?.user_id || "");
 
-    // 2. CONSOLIDATED ACTIVE ORDER LOGIC
-    // We wrap this in useMemo to ensure the UI stays stable during re-renders
     const activeOrder = useMemo(() => {
-        if (!currentUserId) return null;
+        if (!currentUserId || !orders.length) return null;
 
-        // Filter all relevant orders for this user
         const myActiveOrders = orders.filter(o =>
             String(o.user_id || o.userId) === currentUserId &&
             String(o.status).toUpperCase() !== 'CLAIMED' &&
@@ -23,26 +20,21 @@ export default function QueueMonitor() {
 
         if (myActiveOrders.length === 0) return null;
 
-        // Sort by ID to ensure we always handle the oldest request first
         const sorted = [...myActiveOrders].sort((a, b) => Number(a.id) - Number(b.id));
-
-        // PRIORITY: If any are 'READY', show that one first. Otherwise, show the oldest pending.
         return sorted.find(o => String(o.status).toUpperCase() === 'READY') || sorted[0];
     }, [orders, currentUserId]);
 
-    // If no active orders, the component remains dormant
-    if (!activeOrder) return null;
+    // We use a stable ID for the position calculation to avoid hook count mismatches
+    const activeOrderId = activeOrder?.id || null;
 
-    // 3. ACCURATE POSITION LOGIC
     const queuePosition = useMemo(() => {
-        // Use primitives for the calculation to keep it stable
-        const myId = Number(activeOrder?.id || 0);
+        if (!activeOrderId || !orders.length) return 1;
+        
+        const myId = Number(activeOrderId);
         const servingId = Number(currentServingId || 0);
 
-        if (!myId || !orders.length) return 1;
         if (myId <= servingId) return 1;
 
-        // 🛡️ Calculate based on the current orders array
         const aheadCount = orders.filter(o => {
             const oId = Number(o.id);
             const status = String(o.status || "").toUpperCase();
@@ -50,24 +42,22 @@ export default function QueueMonitor() {
         }).length;
 
         return aheadCount + 1;
+    }, [orders, activeOrderId, currentServingId]);
 
-        // 🛡️ CHANGE: Use [orders, myId, servingId] 
-        // This ensures if orders content changes, position updates, 
-        // but it won't loop because it's not setting state.
-    }, [orders, activeOrder?.id, currentServingId]);
-
-    // 4. STATS & STYLING CONSTANTS (Convert to useMemo!)
-    // Previously this was a raw constant, meaning it ran on EVERY render.
     const totalInQueue = useMemo(() => {
         return orders.filter(o => {
             const s = String(o.status).toUpperCase();
             return s !== 'CLAIMED' && s !== 'CANCELLED';
         }).length;
-    }, [orders.length]);
+    }, [orders]);
 
-    const isReady = String(activeOrder.status).toUpperCase() === 'READY';
+    // 2. LOGIC DERIVATION (Non-hook)
+    const isReady = activeOrder ? String(activeOrder.status).toUpperCase() === 'READY' : false;
     const waitPerPerson = isReady ? 1 : 3;
     const estWait = (queuePosition - 1) * waitPerPerson;
+
+    // 3. SINGLE RETURN PATH (Handle "null" inside the JSX)
+    if (!activeOrder) return null;
 
     return (
         <div className="w-full animate-in slide-in-from-top duration-700">

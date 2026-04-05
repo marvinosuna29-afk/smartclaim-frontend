@@ -161,12 +161,14 @@ export default function ProfileSettings() {
   const handleUnlinkDiscord = async () => {
     if (!window.confirm("Are you sure? Discord notifications will stop.")) return;
 
-    // Use the action from AppContext instead of local axios
-    const { unlinkDiscord } = useApp(); // Make sure to destructure this at the top too!
 
+    // Use the 'unlinkDiscord' you already destuctured at the top of the file
     const result = await unlinkDiscord();
+
     if (result.success) {
       notify('success', 'Discord unlinked successfully.');
+      // Recommended: Refresh the user state so the UI flips back to the "Link" form
+      if (typeof refreshUser === 'function') await refreshUser();
     } else {
       notify('error', result.message || 'Failed to unlink.');
     }

@@ -19,6 +19,14 @@ export const AppProvider = ({ children }) => {
   const [officeStatus, setOfficeStatus] = useState('OPEN');
   const [loading, setLoading] = useState(false);
   const [privateAlert, setPrivateAlert] = useState(null);
+  const [currentQueue, setCurrentQueue] = useState(0);
+
+  useEffect(() => {
+    const waitingCount = orders.filter(o =>
+      ['READY', 'APPROVED', 'FOR PICKUP'].includes(String(o.status).toUpperCase())
+    ).length;
+    setCurrentQueue(waitingCount);
+  }, [orders]);
 
   // --- HELPERS ---
   const setUser = (userData) => {
@@ -201,7 +209,12 @@ export const AppProvider = ({ children }) => {
     // --- INVENTORY & ITEMS ---
     addItem: async (itemData) => {
       const r = await api('/api/items', 'POST', { ...itemData, adminId: user?.id });
-      if (r.ok) { refreshData(); return { success: true }; }
+      if (r.ok) {
+        // ✅ FIX: Directly add the new item to the state instead of waiting for refresh
+        const newItem = r.data.item || r.data;
+        setItems(prev => [...prev, newItem]);
+        return { success: true };
+      }
       return { success: false, message: r.data?.message };
     },
 
@@ -249,30 +262,21 @@ export const AppProvider = ({ children }) => {
     },
 
     processScanClaim: async (orderIds, adminId) => {
-      const normalizedIds = Array.isArray(orderIds)
-        ? orderIds.map(id => String(id).trim())
-        : [String(orderIds).trim()];
-
-      // 🛡️ Guard: Check if ANY of these are already claimed locally
-      const alreadyClaimed = orders.some(o =>
-        normalizedIds.includes(String(o.id)) && o.status.toUpperCase() === 'CLAIMED'
-      );
-
-      if (alreadyClaimed) return { success: false, message: "Order already claimed." };
-
+      const normalizedIds = Array.isArray(orderIds) ? orderIds.map(id => String(id)) : [String(orderIds)];
       const response = await api('/api/orders/scan-claim', 'POST', { orderIds: normalizedIds, adminId });
 
       if (response.ok) {
-        // 1. Update Orders State
-        setOrders(prev => prev.map(o =>
-          normalizedIds.includes(String(o.id)) ? { ...o, status: 'CLAIMED' } : o
+        // 1. Fix Status (Prevents vanishing)
+        setOrders(prev => prev.map(order =>
+          normalizedIds.includes(String(order.id)) ? { ...order, status: 'CLAIMED' } : order
         ));
 
-        // 2. Update Inventory State (Derived from the IDs we just processed)
+        // 2. Fix Stock (Updates Inventory UI immediately)
         setItems(prevItems => prevItems.map(item => {
+          // Find orders in this scan that belong to this specific item
           const claimedForThisItem = orders.filter(o =>
             normalizedIds.includes(String(o.id)) &&
-            (String(o.item_id) === String(item.id) || o.item_name === item.name)
+            (String(o.item_id) === String(item.id))
           );
 
           if (claimedForThisItem.length === 0) return item;
@@ -285,11 +289,10 @@ export const AppProvider = ({ children }) => {
           return { ...item, sizes: newSizes };
         }));
 
-        // 3. Optional: Brief delay before full refresh to let backend DB settle
-        setTimeout(() => refreshData(), 2000);
+        setTimeout(() => refreshData(), 1500);
         return { success: true };
       }
-      return { success: false, message: response.data?.message || "Claim failed" };
+      return { success: false, message: response.data?.message };
     },
 
     updateOrderStatusBulk: async (ids, status) => {
@@ -330,7 +333,8 @@ export const AppProvider = ({ children }) => {
 
   return (
     <AppContext.Provider value={{
-      user, users, items, orders, announcements, officeStatus, loading,
+      user, users, items, orders, announcements, officeStatus, loading, privateAlert,
+      currentQueue,
       setUser, refreshData, ...actions
     }}>
       {children}

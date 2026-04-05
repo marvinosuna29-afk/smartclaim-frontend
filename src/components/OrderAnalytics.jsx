@@ -2,30 +2,17 @@ import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import {
   XAxis, YAxis, CartesianGrid, Tooltip,
-  LineChart, Line, ResponsiveContainer
+  LineChart, Line
 } from 'recharts';
-import { Printer, Loader2, Zap, Clock, TrendingUp } from 'lucide-react';
+import { Printer, Loader2, Zap, Clock } from 'lucide-react';
 
 export default function OrderAnalytics({ orders = [] }) {
+  // 1. ALL STATE & REFS AT THE TOP
   const [showPrintVersion, setShowPrintVersion] = useState(false);
   const containerRef = useRef(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
 
-  // 1. Guard against null/empty orders early
-  if (!orders) return null; // Safety break
-
-  if (orders.length === 0) {
-    return (
-      <div className="p-20 text-center bg-slate-50 rounded-[3rem] border-2 border-dashed border-slate-200 animate-pulse">
-        <div className="flex flex-col items-center gap-2">
-          <Loader2 className="w-5 h-5 text-slate-300 animate-spin" />
-          <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.3em]">Syncing Audit Feed...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // 2. Specialized ResizeObserver to prevent Recharts "0-width" crashes
+  // 2. ALL EFFECTS NEXT
   useEffect(() => {
     const observeTarget = containerRef.current;
     if (!observeTarget) return;
@@ -42,13 +29,14 @@ export default function OrderAnalytics({ orders = [] }) {
     return () => resizeObserver.disconnect();
   }, []);
 
-  // 3. Metric Calculations (Volume, Speed, Peak)
+  // 3. ALL MEMOS (Logic processing)
   const { chartData, todayCount, avgWaitTime, peakDay } = useMemo(() => {
     const dailyCounts = {};
     const now = new Date();
     let totalWait = 0;
     let timedOrders = 0;
 
+    // Build the last 7 days keys
     for (let i = 6; i >= 0; i--) {
       const d = new Date();
       d.setDate(now.getDate() - i);
@@ -58,7 +46,10 @@ export default function OrderAnalytics({ orders = [] }) {
     const todayStr = now.toLocaleDateString('en-CA');
     let countToday = 0;
 
-    orders.forEach(o => {
+    // Ensure orders is an array before processing
+    const safeOrders = Array.isArray(orders) ? orders : [];
+
+    safeOrders.forEach(o => {
       const dateObj = new Date(o.created_at || o.date);
       const dateKey = dateObj.toLocaleDateString('en-CA');
 
@@ -67,7 +58,6 @@ export default function OrderAnalytics({ orders = [] }) {
       }
       if (dateKey === todayStr) countToday++;
 
-      // Logic for Performance Metric: Speed
       if ((o.status === 'READY' || o.status === 'COMPLETED') && o.updated_at) {
         const start = new Date(o.created_at).getTime();
         const end = new Date(o.updated_at).getTime();
@@ -81,14 +71,19 @@ export default function OrderAnalytics({ orders = [] }) {
       count: dailyCounts[key]
     }));
 
+    const peakResult = formattedData.length > 0 
+      ? formattedData.reduce((prev, curr) => (prev.count > curr.count) ? prev : curr, formattedData[0])
+      : { label: 'N/A' };
+
     return {
       chartData: formattedData,
       todayCount: countToday,
       avgWaitTime: timedOrders > 0 ? Math.round((totalWait / timedOrders) / 60000) : 0,
-      peakDay: formattedData.reduce((prev, curr) => (prev.count > curr.count) ? prev : curr, formattedData[0]).label
+      peakDay: peakResult.label
     };
   }, [orders]);
 
+  // 4. HANDLERS
   const handlePrint = () => {
     setShowPrintVersion(true);
     setTimeout(() => {
@@ -136,10 +131,22 @@ export default function OrderAnalytics({ orders = [] }) {
     </LineChart>
   );
 
+  // 5. CONDITIONAL RENDER (Now safe because all hooks have fired)
+  if (!orders || orders.length === 0) {
+    return (
+      <div className="p-20 text-center bg-slate-50 rounded-[3rem] border-2 border-dashed border-slate-200 animate-pulse">
+        <div className="flex flex-col items-center gap-2">
+          <Loader2 className="w-5 h-5 text-slate-300 animate-spin" />
+          <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.3em]">Syncing Audit Feed...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // 6. MAIN JSX
   return (
     <>
       <div className="no-print w-full space-y-6 select-none">
-        {/* TOP ANALYTICS BAR */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="bg-emerald-50 border border-emerald-100 p-6 rounded-[2rem]">
             <div className="flex items-center gap-3 mb-2">
@@ -168,7 +175,6 @@ export default function OrderAnalytics({ orders = [] }) {
           </div>
         </div>
 
-        {/* CHART SECTION */}
         <div className="bg-white p-6 rounded-[3rem] border border-slate-100 shadow-sm">
           <div ref={containerRef} className="w-full h-[300px] flex items-center justify-center">
             {dimensions.width > 0 ? (
@@ -182,7 +188,6 @@ export default function OrderAnalytics({ orders = [] }) {
           </div>
         </div>
 
-        {/* TABLE LOG */}
         <div className="bg-white rounded-[2.5rem] border border-slate-100 overflow-hidden">
           <table className="w-full text-left">
             <thead>
@@ -205,7 +210,6 @@ export default function OrderAnalytics({ orders = [] }) {
         </div>
       </div>
 
-      {/* PRINT PORTAL */}
       {showPrintVersion && createPortal(
         <div className="p-10 bg-white text-slate-900">
           <header className="flex justify-between border-b-4 border-slate-900 pb-6 mb-8">
@@ -222,16 +226,20 @@ export default function OrderAnalytics({ orders = [] }) {
             <RenderChart width={650} height={250} isPrinting={true} />
           </div>
           <table className="w-full text-sm">
-            <tr className="border-b-2 border-slate-900 uppercase font-black text-[10px]">
-              <th className="py-2 text-left">Date</th>
-              <th className="py-2 text-right">Units Processed</th>
-            </tr>
-            {chartData.map((day, i) => (
-              <tr key={i} className="border-b border-slate-100">
-                <td className="py-2 font-bold">{day.label}</td>
-                <td className="py-2 text-right font-black">{day.count}</td>
+            <thead>
+              <tr className="border-b-2 border-slate-900 uppercase font-black text-[10px]">
+                <th className="py-2 text-left">Date</th>
+                <th className="py-2 text-right">Units Processed</th>
               </tr>
-            ))}
+            </thead>
+            <tbody>
+              {chartData.map((day, i) => (
+                <tr key={i} className="border-b border-slate-100">
+                  <td className="py-2 font-bold">{day.label}</td>
+                  <td className="py-2 text-right font-black">{day.count}</td>
+                </tr>
+              ))}
+            </tbody>
           </table>
         </div>,
         document.body

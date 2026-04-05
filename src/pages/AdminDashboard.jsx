@@ -28,42 +28,42 @@ export default function AdminDashboard({ setActiveTab }) {
 
   // --- DATA FILTERING & QUEUE LOGIC ---
   const ordersToVerify = useMemo(() => {
-    if (!orders) return [];
+    if (!orders || !Array.isArray(orders)) return [];
     return orders.filter(o => {
       const s = String(o.status || "").toUpperCase();
       return s === 'AWAITING_VERIFICATION' || s === 'VERIFYING';
     });
-    // 🛡️ Watch length to keep it stable
-  }, [orders.length]);
+  }, [orders]); // Use 'orders' instead of 'orders.length'
 
   const activePickupQueue = useMemo(() => {
-    if (!orders) return [];
+    if (!orders || !Array.isArray(orders)) return [];
     return orders.filter(o => String(o.status || "").toUpperCase() === 'READY');
-  }, [orders.length]);
+  }, [orders]); // Use 'orders' instead of 'orders.length'
 
-  // Use a memo for the display number so it doesn't flicker
-  const displayQueue = useMemo(() => activePickupQueue.length, [activePickupQueue.length]);
+  const displayQueue = useMemo(() => activePickupQueue.length, [activePickupQueue]);
 
+  // 2. STOCK: Watch the whole 'items' array
   const lowStockCount = useMemo(() => {
     if (!items || !Array.isArray(items)) return 0;
     return items.filter(i => i && Number(i.is_low_stock) === 1).length;
-  }, [items.length]); // 🛡️ Only re-run if the number of items changes
+  }, [items]); // Use 'items' instead of 'items.length'
 
   const totalUnits = useMemo(() => {
-    if (!items) return 0;
+    if (!items || !Array.isArray(items)) return 0;
     return items.reduce((acc, item) => {
       const sizesObj = (item.sizes && typeof item.sizes === 'object') ? item.sizes : {};
       const itemTotal = Object.values(sizesObj).reduce((a, b) => a + (Number(b) || 0), 0);
       return acc + itemTotal;
-    }, 0);
-  }, [items.length]);
+    });
+  }, [items]);
 
+  // 3. STATS CARDS: Watch the derived memo results directly
   const statsCards = useMemo(() => [
     { label: 'To Verify', value: ordersToVerify.length, icon: AlertTriangle, color: 'bg-amber-500', tab: 'orders' },
     { label: 'Ready for Pickup', value: activePickupQueue.length, icon: Clock, color: 'bg-blue-500', tab: 'scanner' },
     { label: 'Low Stock', value: lowStockCount, icon: Info, color: 'bg-red-500', tab: 'inventory' },
     { label: 'Total Units', value: totalUnits, icon: Package, color: 'bg-emerald-500', tab: 'inventory' },
-  ], [ordersToVerify.length, activePickupQueue.length, lowStockCount, totalUnits]);
+  ], [ordersToVerify, activePickupQueue, lowStockCount, totalUnits]);
 
   return (
     <div className="space-y-10 pb-12 text-left animate-in fade-in duration-700">
@@ -131,12 +131,16 @@ export default function AdminDashboard({ setActiveTab }) {
           </div>
         </div>
 
-        {/* The Fix: Analytics Guard */}
-        {orders && orders.length > 0 ? (
-          <div className="animate-in fade-in slide-in-from-bottom-4 duration-1000">
-            <OrderAnalytics orders={orders} />
-          </div>
-        ) : (
+        {/* 🛡️ STABLE RENDER STRATEGY: 
+    We keep OrderAnalytics mounted 100% of the time so its hooks are stable.
+    We only hide it visually if there is no data.
+  */}
+        <div className={orders && orders.length > 0 ? "block animate-in fade-in slide-in-from-bottom-4 duration-1000" : "hidden"}>
+          <OrderAnalytics orders={orders || []} />
+        </div>
+
+        {/* 🛡️ EMPTY STATE (Conditional Rendering is safe here because this div has no hooks) */}
+        {(!orders || orders.length === 0) && (
           <div className="py-24 text-center space-y-4 bg-slate-50/50 rounded-[2.5rem] border-2 border-dashed border-slate-100">
             <div className="mx-auto w-12 h-12 bg-white rounded-2xl shadow-sm flex items-center justify-center text-slate-200">
               <Package size={24} />

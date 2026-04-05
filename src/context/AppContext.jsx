@@ -113,6 +113,11 @@ export const AppProvider = ({ children }) => {
 
   // --- 4. ACTIONS (Memoized to prevent 'l is not a function') ---
   const actions = useMemo(() => ({
+
+    refreshOrders: refreshData,
+    fetchOrders: refreshData,
+    syncStats: refreshData,
+
     setUser: (userData) => {
       if (userData) localStorage.setItem('app_user', JSON.stringify(userData));
       else { localStorage.removeItem('app_user'); localStorage.removeItem('token'); }
@@ -327,6 +332,8 @@ export const AppProvider = ({ children }) => {
       return { success: r.ok };
     }
   }), [stableUserId, api, normalizeUser, refreshData]);
+
+
 
   // --- 5. DERIVED STATE ---
   const currentQueue = useMemo(() => orders.filter(o => !['CLAIMED', 'CANCELLED'].includes(o.status?.toUpperCase())).length, [orders]);

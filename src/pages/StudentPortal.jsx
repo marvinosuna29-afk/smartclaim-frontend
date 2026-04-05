@@ -11,7 +11,7 @@ import QueueMonitor from '../components/student/QueueMonitor';
 export default function StudentPortal({ needsVerification, activeTab, myOrders: propsOrders }) {
   const {
     items = [],
-    orders: contextOrders = [], // Rename this to contextOrders
+    orders: contextOrders = [],
     user = {},
     currentQueue = 0,
     addOrder,
@@ -21,18 +21,18 @@ export default function StudentPortal({ needsVerification, activeTab, myOrders: 
     loading
   } = useApp();
 
+  // --- 1. STATE HOOKS ---
   const [selectedSizes, setSelectedSizes] = useState({});
   const [uploadingId, setUploadingId] = useState(null);
   const [showQRModal, setShowQRModal] = useState(false);
   const [selectedOrderForQR, setSelectedOrderForQR] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // --- 🛡️ FILTER LOGIC ---
+  // --- 2. MEMO HOOKS (Filter Logic) ---
   const myOrders = useMemo(() => {
     const sourceOrders = contextOrders.length > 0 ? contextOrders : (propsOrders || []);
     const currentUserId = String(user?.user_id || user?.id || "").trim();
 
-    // Move the "empty" check inside the filter so the hook always completes
     return sourceOrders.filter(o => {
       if (!currentUserId) return false;
       const orderOwnerId = String(
@@ -43,7 +43,6 @@ export default function StudentPortal({ needsVerification, activeTab, myOrders: 
   }, [propsOrders, contextOrders, user]);
 
   const pendingPayment = useMemo(() => {
-    // Always run the filter, even if myOrders is empty
     return myOrders.filter(o => {
       const s = String(o.status || "").toUpperCase().trim();
       const needsPayment = s === 'PENDING' || s === 'AWAITING_PAYMENT' || s === 'UNPAID';
@@ -76,39 +75,18 @@ export default function StudentPortal({ needsVerification, activeTab, myOrders: 
     });
   }, [myOrders]);
 
+  // --- 3. EFFECT HOOKS ---
   useEffect(() => {
     if (showQRModal && selectedOrderForQR) {
-      // Check if the specific order in the modal is still in the "READY" list
       const isStillReady = readyOrders.some(o => String(o.id) === String(selectedOrderForQR.id));
       if (!isStillReady) {
         setShowQRModal(false);
         setSelectedOrderForQR(null);
       }
     }
-  }, [readyOrders, showQRModal, selectedOrderForQR]); // Watch readyOrders specifically
+  }, [readyOrders, showQRModal, selectedOrderForQR]);
 
-  if (needsVerification && user?.role?.toLowerCase() !== 'admin') {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[70vh] p-8 text-center animate-in fade-in duration-700">
-        <div className="relative mb-8">
-          <div className="absolute inset-0 bg-amber-400/20 blur-3xl rounded-full" />
-          <div className="relative bg-white p-8 rounded-full border-4 border-amber-50 text-amber-500 shadow-2xl">
-            <Clock size={64} strokeWidth={1.5} className="animate-pulse" />
-          </div>
-        </div>
-        <div className="max-w-sm space-y-4">
-          <h2 className="text-3xl font-black text-slate-900 uppercase tracking-tighter leading-none">Awaiting Entry</h2>
-          <p className="text-slate-400 font-bold text-sm leading-relaxed">
-            Your credentials have been submitted. The administration is currently verifying your student profile.
-          </p>
-          <div className="inline-flex items-center gap-2 px-6 py-2 bg-slate-900 text-white rounded-full text-[10px] font-black uppercase tracking-[0.2em]">
-            Status: Pending Admin Approval
-          </div>
-        </div>
-      </div>
-    );
-  }
-
+  // --- 4. ACTION HANDLERS ---
   const handlePlaceOrder = async (item) => {
     const size = selectedSizes[item.id];
     if (officeStatus === 'CLOSED' || isSubmitting || !size) return;
@@ -133,20 +111,12 @@ export default function StudentPortal({ needsVerification, activeTab, myOrders: 
 
   const handleReferenceSubmit = async (orderId) => {
     const refNum = window.prompt("Enter your Payment Reference / Transaction Number:");
-
-    // 1. Validation: Ensure input isn't empty or just spaces
     if (!refNum || !refNum.trim()) return;
 
     setUploadingId(orderId);
     try {
-      // 2. The Fix: Capture the full response object
       const response = await submitReceipt(orderId, refNum.trim());
-
-      // 3. The Fix: Check for the success property specifically
-      if (response && response.success) {
-        // Optional: You could add a "Success" toast here
-      } else {
-        // Show the specific error message from the server if it exists
+      if (!(response && response.success)) {
         alert(response?.message || "Submission failed. Check your connection.");
       }
     } catch (err) {
@@ -157,15 +127,40 @@ export default function StudentPortal({ needsVerification, activeTab, myOrders: 
     }
   };
 
+  // --- 5. THE GATE (Conditional Rendering) ---
+  // We place this AFTER all hooks but BEFORE the main JSX.
+  if (needsVerification && user?.role?.toLowerCase() !== 'admin') {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[70vh] p-8 text-center animate-in fade-in duration-700">
+        <div className="relative mb-8">
+          <div className="absolute inset-0 bg-amber-400/20 blur-3xl rounded-full" />
+          <div className="relative bg-white p-8 rounded-full border-4 border-amber-50 text-amber-500 shadow-2xl">
+            <Clock size={64} strokeWidth={1.5} className="animate-pulse" />
+          </div>
+        </div>
+        <div className="max-w-sm space-y-4">
+          <h2 className="text-3xl font-black text-slate-900 uppercase tracking-tighter leading-none">Awaiting Entry</h2>
+          <p className="text-slate-400 font-bold text-sm leading-relaxed">
+            Your credentials have been submitted. The administration is currently verifying your student profile.
+          </p>
+          <div className="inline-flex items-center gap-2 px-6 py-2 bg-slate-900 text-white rounded-full text-[10px] font-black uppercase tracking-[0.2em]">
+            Status: Pending Admin Approval
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Final Console Log for Debugging
   console.log("Current User ID:", user?.id, "Ready Orders:", readyOrders);
 
+  // --- 6. MAIN RENDER ---
   return (
     <div className="max-w-7xl mx-auto space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-1000 pb-20">
 
-      {/* 🏠 VIEW 1: DASHBOARD (Active when tab is 'dashboard' or undefined) */}
+      {/* 🏠 VIEW 1: DASHBOARD */}
       {(activeTab === 'dashboard' || !activeTab) && (
         <>
-          {/* ✨ DYNAMIC WELCOME BANNER */}
           <div className="px-4 pt-4">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
               <div className="space-y-2">
@@ -201,12 +196,8 @@ export default function StudentPortal({ needsVerification, activeTab, myOrders: 
             </div>
           </div>
 
-          {/* 🎟️ HERO / QUEUE SECTION - STACKED FOR PERSISTENCE */}
           <div className="space-y-6">
-
-            {/* 1. READY BANNER LOGIC */}
-            {loading && contextOrders.length === 0 ? ( // ✅ Changed from orders.length
-              /* A: SYNCING STATE */
+            {loading && contextOrders.length === 0 ? (
               <div className="h-48 w-full bg-slate-50 rounded-[3rem] border border-dashed border-slate-200 animate-pulse flex items-center justify-center">
                 <div className="flex items-center gap-3">
                   <Loader2 className="animate-spin text-slate-300" size={20} />
@@ -214,7 +205,6 @@ export default function StudentPortal({ needsVerification, activeTab, myOrders: 
                 </div>
               </div>
             ) : readyOrders.length > 0 ? (
-              /* B: READY STATE - Shows when data is confirmed */
               <div className="relative overflow-hidden bg-emerald-600 rounded-[3rem] p-10 md:p-14 text-white shadow-2xl animate-in zoom-in duration-500">
                 <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-10">
                   <div className="space-y-4 text-center md:text-left">
@@ -247,12 +237,9 @@ export default function StudentPortal({ needsVerification, activeTab, myOrders: 
               </div>
             ) : null}
 
-            {/* 2. QUEUE MONITOR: Always rendered, no longer hidden by the banner */}
             <QueueMonitor />
-
           </div>
 
-          {/* 📢 ANNOUNCEMENTS */}
           {announcements.length > 0 ? (
             <section className="space-y-4 px-2">
               <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 flex items-center gap-2">
@@ -282,7 +269,6 @@ export default function StudentPortal({ needsVerification, activeTab, myOrders: 
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
             <div className="lg:col-span-5 space-y-8">
-              {/* PAYMENT SECTION */}
               {pendingPayment.length > 0 && (
                 <div className="bg-amber-50 border-2 border-amber-100/50 p-8 rounded-[3rem] space-y-6">
                   <h3 className="text-[11px] font-black uppercase tracking-widest text-amber-700 flex items-center gap-2">
@@ -308,7 +294,6 @@ export default function StudentPortal({ needsVerification, activeTab, myOrders: 
                 </div>
               )}
 
-              {/* ACTIVE PICKUP SECTION */}
               <div className="bg-white p-8 rounded-[3rem] shadow-2xl shadow-slate-200/50 border border-slate-100">
                 <h3 className="text-lg font-black uppercase tracking-tighter text-slate-900 flex items-center gap-3 mb-8">
                   <CheckCircle2 className="text-emerald-500" size={22} /> My Pickup Terminal
@@ -351,7 +336,6 @@ export default function StudentPortal({ needsVerification, activeTab, myOrders: 
               </div>
             </div>
 
-            {/* INVENTORY CATALOG */}
             <div className="lg:col-span-7 space-y-8 relative">
               <div className="flex justify-between items-center px-4">
                 <h3 className="text-2xl font-black uppercase tracking-tighter text-slate-900">Inventory Catalog</h3>
@@ -419,7 +403,7 @@ export default function StudentPortal({ needsVerification, activeTab, myOrders: 
         </>
       )}
 
-      {/* 📜 VIEW 2: ORDER HISTORY (Active when tab is 'history') */}
+      {/* 📜 VIEW 2: ORDER HISTORY */}
       {activeTab === 'history' && (
         <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500 px-4">
           <div className="flex flex-col gap-2">
@@ -461,12 +445,10 @@ export default function StudentPortal({ needsVerification, activeTab, myOrders: 
         </div>
       )}
 
-      {/* 🎟️ DIGITAL CLAIM MODAL (Available in all tabs) */}
+      {/* 🎟️ DIGITAL CLAIM MODAL */}
       {showQRModal && selectedOrderForQR && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-950/90 backdrop-blur-md animate-in fade-in duration-300">
           <div className="bg-white w-full max-w-sm rounded-[4rem] overflow-hidden relative animate-in zoom-in duration-300">
-
-            {/* Header Section */}
             <div className="bg-slate-900 p-10 pb-14 text-center relative">
               <button
                 onClick={() => setShowQRModal(false)}
@@ -485,7 +467,6 @@ export default function StudentPortal({ needsVerification, activeTab, myOrders: 
               </div>
             </div>
 
-            {/* QR & Info Section */}
             <div className="p-10 text-center space-y-8">
               <div className="bg-white p-6 rounded-[3rem] inline-block border-2 border-slate-50 shadow-inner">
                 <QRCodeSVG
@@ -516,7 +497,6 @@ export default function StudentPortal({ needsVerification, activeTab, myOrders: 
                   Present this code to the office administrator. <br />
                   Once scanned, this item will be marked as claimed.
                 </p>
-
                 <button
                   onClick={() => setShowQRModal(false)}
                   className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-[10px] hover:bg-slate-800 transition-all active:scale-95"

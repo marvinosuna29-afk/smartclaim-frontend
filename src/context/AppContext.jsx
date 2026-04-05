@@ -201,22 +201,28 @@ export const AppProvider = ({ children }) => {
       if (r.ok) { setItems(prev => prev.filter(item => item.id !== id)); return { success: true }; }
       return { success: false };
     },
-    updateItemStock: async (itemId, newStock) => {
-      const r = await api(`/api/items/${itemId}`, 'PATCH', {
-        stock: newStock,
+    updateItemStock: async (itemId, size = 'default', delta = 0) => {
+      // 1. Change the URL to match the backend 'update-stock' route
+      const r = await api('/api/items/update-stock', 'PATCH', {
+        itemId,        // Backend: const { itemId, size, delta, adminId } = req.body;
+        size,
+        delta,
         adminId: stableUserId
       });
+
       if (r.ok) {
+        // 2. Update local state with the new sizes object the backend returns
         setItems(prev => prev.map(item =>
-          item.id === itemId ? { ...item, stock: newStock } : item
+          String(item.id) === String(itemId) ? { ...item, sizes: r.data.sizes } : item
         ));
         return { success: true };
       }
-      return { success: false, message: r.data?.message };
+      return { success: false, message: r.data?.message || "Stock update failed" };
     },
-    // 🚨 ADD THIS ALIAS BELOW IT
-    updateStock: async (itemId, newStock) => {
-      return actions.updateItemStock(itemId, newStock);
+
+    // Keep the alias so your UI doesn't crash if it's looking for 'updateStock'
+    updateStock: async (itemId, size, delta) => {
+      return actions.updateItemStock(itemId, size, delta);
     },
     toggleLowStock: async (itemId) => {
       const r = await api('/api/items/toggle-low-stock', 'PATCH', { itemId, adminId: stableUserId });

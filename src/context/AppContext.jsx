@@ -118,6 +118,21 @@ export const AppProvider = ({ children }) => {
       else { localStorage.removeItem('app_user'); localStorage.removeItem('token'); }
       setUserState(userData);
     },
+    register: async (studentData) => {
+      const r = await api('/api/auth/register', 'POST', studentData);
+      if (r.ok) {
+        // Refresh the user list so the new student shows up in the directory immediately
+        const uRes = await api(`/api/admin/users?adminId=${stableUserId}`);
+        if (uRes.ok && Array.isArray(uRes.data)) {
+          setUsers(uRes.data.map(normalizeUser));
+        }
+        return { success: true };
+      }
+      return {
+        success: false,
+        message: r.data?.message || "Registration failed"
+      };
+    },
     login: async (id, password) => {
       const r = await api('/api/auth/login', 'POST', { id, password });
       if (r.ok) {

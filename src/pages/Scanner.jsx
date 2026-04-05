@@ -50,9 +50,8 @@ export default function Scanner() {
     if (!cleanCode || isProcessing) return;
 
     setIsProcessing(true);
-    // Note: Don't clear manualId yet so the user can see what they typed if it fails
 
-    // 1. Parse IDs
+    // 1. Parse IDs (Handles single scans or comma-separated batch scans)
     const idArray = [...new Set(cleanCode.split(/[,\s]+/).filter(id => id.length > 0))];
 
     if (idArray.length === 0) {
@@ -65,19 +64,23 @@ export default function Scanner() {
     try {
       const adminId = user?.id || user?.user_id;
 
-      // 2. Bypass local filtering and send DIRECTLY to backend
-      // This ensures even if local state is laggy, the server decides.
+      // 2. Call the action from AppContext
       const result = await processScanClaim(idArray, adminId);
 
       if (result.success) {
-        // Find the orders in our local list JUST for printing purposes
-        const claimable = (orders || []).filter(o => idArray.includes(String(o.id)));
+        // 3. PRINTING: Find the details of the orders we just claimed
+        // We use the 'orders' array from context which was just updated by processScanClaim
+        const claimedOrders = (orders || []).filter(o => idArray.includes(String(o.id)));
 
-        for (const order of claimable) {
+        for (const order of claimedOrders) {
+          // Even if printReceipt is just a console.log for now, we call it
           await printReceipt(order).catch(err => console.error("Print failed:", err));
         }
 
-        if (incrementQueue) await incrementQueue(adminId);
+        // 4. QUEUE MGMT: Check if incrementQueue exists before calling
+        if (typeof incrementQueue === 'function') {
+          await incrementQueue(adminId);
+        }
 
         setScanResult({
           success: true,
@@ -85,10 +88,11 @@ export default function Scanner() {
           details: idArray.join(", ")
         });
         playFeedback(true);
-        setManualId(''); // Clear only on success
+        setManualId(''); // Clear input only on success
+
+        // Auto-reset result after 3 seconds to return to "Standby"
         setTimeout(() => setScanResult(null), 3000);
       } else {
-        // 3. If the backend says no, show the backend's specific error message
         setScanResult({
           success: false,
           message: result.message || "Verification Failed"
@@ -97,7 +101,7 @@ export default function Scanner() {
       }
     } catch (error) {
       console.error("Scanner Error:", error);
-      setScanResult({ success: false, message: "System Error. Check Console." });
+      setScanResult({ success: false, message: "System Error. Connection Refused." });
     } finally {
       setIsProcessing(false);
     }

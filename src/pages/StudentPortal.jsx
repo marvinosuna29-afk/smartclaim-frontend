@@ -404,18 +404,34 @@ export default function StudentPortal({ needsVerification, activeTab, myOrders: 
       {showQRModal && selectedOrderForQR && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-950/90 backdrop-blur-md animate-in fade-in duration-300">
           <div className="bg-white w-full max-w-sm rounded-[4rem] overflow-hidden relative animate-in zoom-in duration-300">
+
+            {/* Header Section */}
             <div className="bg-slate-900 p-10 pb-14 text-center relative">
-              <button onClick={() => setShowQRModal(false)} className="absolute top-8 right-8 text-white/30 hover:text-white transition-colors">
+              <button
+                onClick={() => setShowQRModal(false)}
+                className="absolute top-8 right-8 text-white/30 hover:text-white transition-colors"
+              >
                 <X size={24} />
               </button>
-              <h3 className="text-3xl font-black uppercase text-white tracking-tighter leading-none">
-                {readyOrders.length > 1 ? `${readyOrders.length} ITEMS READY` : selectedOrderForQR.item_name}
-              </h3>
+              <div className="space-y-2">
+                <p className="text-[10px] font-black text-emerald-400 uppercase tracking-[0.3em]">Authorized Collection</p>
+                <h3 className="text-3xl font-black uppercase text-white tracking-tighter leading-none">
+                  {selectedOrderForQR.item_name}
+                </h3>
+                <p className="text-white/40 text-[10px] font-bold uppercase tracking-widest">
+                  Ref: #{String(selectedOrderForQR.id).padStart(4, '0')}
+                </p>
+              </div>
             </div>
+
+            {/* QR & Info Section */}
             <div className="p-10 text-center space-y-8">
               <div className="bg-white p-6 rounded-[3rem] inline-block border-2 border-slate-50 shadow-inner">
+                {/* ✅ THE FIX: We use only String(selectedOrderForQR.id) 
+                   This ensures the scanner only processes THIS specific item.
+                */}
                 <QRCodeSVG
-                  value={readyOrders.map(o => o.id).join(',')}
+                  value={String(selectedOrderForQR.id)}
                   size={180}
                   level="H"
                   includeMargin={true}
@@ -426,25 +442,30 @@ export default function StudentPortal({ needsVerification, activeTab, myOrders: 
               <div className="p-6 bg-emerald-50 rounded-[2.5rem] border border-emerald-100">
                 <div className="flex items-center justify-center gap-4">
                   <div className="text-center">
-                    <p className="text-[8px] font-black text-emerald-700/50 uppercase mb-1">Queue Sync</p>
-                    <p className="text-3xl font-black text-emerald-950">#{String(currentQueue || 0).padStart(3, '0')}</p>
+                    <p className="text-[8px] font-black text-emerald-700/50 uppercase mb-1">Size</p>
+                    <p className="text-2xl font-black text-emerald-950">{selectedOrderForQR.size}</p>
                   </div>
                   <div className="h-10 w-[1px] bg-emerald-200" />
                   <div className="text-center">
-                    <p className="text-[8px] font-black text-emerald-700/50 uppercase mb-1">Office Status</p>
-                    <p className="text-xs font-black uppercase text-emerald-600">🟢 {officeStatus}</p>
+                    <p className="text-[8px] font-black text-emerald-700/50 uppercase mb-1">Queue Sync</p>
+                    <p className="text-xl font-black text-emerald-600">#{String(currentQueue || 0).padStart(3, '0')}</p>
                   </div>
                 </div>
               </div>
-              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest leading-relaxed px-4">
-                Present this code to the office administrator for verification.
-              </p>
-              <button
-                onClick={() => setShowQRModal(false)}
-                className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-[10px] hover:bg-slate-800 transition-colors"
-              >
-                Close Ticket
-              </button>
+
+              <div className="space-y-4">
+                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest leading-relaxed px-4">
+                  Present this code to the office administrator. <br />
+                  Once scanned, this item will be marked as claimed.
+                </p>
+
+                <button
+                  onClick={() => setShowQRModal(false)}
+                  className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-[10px] hover:bg-slate-800 transition-all active:scale-95"
+                >
+                  Close Ticket
+                </button>
+              </div>
             </div>
           </div>
         </div>

@@ -11,14 +11,15 @@ import QueueMonitor from '../components/student/QueueMonitor';
 export default function StudentPortal({ needsVerification, activeTab, myOrders: propsOrders }) {
   const {
     items = [],
-    orders: contextOrders = [],
     user = {},
     currentQueue = 0,
     addOrder,
     officeStatus = "OPEN",
     announcements = [],
     submitReceipt,
-    loading
+    loading,
+    myOrders: contextOrders = [],
+    readyOrders: contextReadyOrders = []
   } = useApp();
 
   // --- 1. STATE HOOKS ---
@@ -30,6 +31,7 @@ export default function StudentPortal({ needsVerification, activeTab, myOrders: 
 
   // --- 2. MEMO HOOKS (Filter Logic) ---
   const myOrders = useMemo(() => {
+    // Now using 'contextOrders' which was renamed above
     const sourceOrders = contextOrders.length > 0 ? contextOrders : (propsOrders || []);
     const currentUserId = String(user?.user_id || user?.id || "").trim();
 

@@ -188,8 +188,20 @@ export const AppProvider = ({ children }) => {
     addOrder: async (orderData) => {
       const r = await api('/api/orders', 'POST', { ...orderData, userId: stableUserId });
       if (r.ok) {
-        const serverOrder = r.data.order || r.data;
-        setOrders(prev => prev.some(o => String(o.id) === String(serverOrder.id)) ? prev : [serverOrder, ...prev]);
+        let serverOrder = r.data.order || r.data;
+
+        // Force the student ID into the local state object so the filter sees it
+        serverOrder = {
+          ...serverOrder,
+          user_id: serverOrder.user_id || stableUserId,
+          status: (serverOrder.status || 'PENDING').toUpperCase()
+        };
+
+        setOrders(prev => {
+          const exists = prev.some(o => String(o.id) === String(serverOrder.id));
+          return exists ? prev : [serverOrder, ...prev];
+        });
+
         return { success: true, orderId: serverOrder.id };
       }
       return { success: false, message: r.data?.message || "Failed" };
@@ -273,9 +285,19 @@ export const AppProvider = ({ children }) => {
 
   // --- 5. DERIVED STATE ---
   const currentQueue = useMemo(() => orders.filter(o => !['CLAIMED', 'CANCELLED'].includes(o.status?.toUpperCase())).length, [orders]);
+  const myOrders = useMemo(() => {
+    if (!stableUserId) return [];
+    return orders.filter(o =>
+      String(o.user_id || o.userId || o.studentId) === stableUserId
+    );
+  }, [orders, stableUserId]);
   const readyOrders = useMemo(() => {
     if (!stableUserId) return [];
-    return orders.filter(o => String(o.user_id || o.userId) === stableUserId && o.status?.toUpperCase() === 'READY');
+    // ❌ PROBLEM: This ONLY shows orders if status is 'READY'
+    return orders.filter(o =>
+      String(o.user_id || o.userId) === stableUserId &&
+      o.status?.toUpperCase() === 'READY'
+    );
   }, [orders, stableUserId]);
 
   // --- 6. EFFECTS ---
@@ -310,7 +332,7 @@ export const AppProvider = ({ children }) => {
   return (
     <AppContext.Provider value={{
       user, users, items, orders, announcements, officeStatus, loading, privateAlert,
-      currentQueue, readyOrders, refreshUser, currentServingId,
+      currentQueue, readyOrders, refreshUser, currentServingId, myOrders,
       refreshData, ...actions
     }}>
       {children}

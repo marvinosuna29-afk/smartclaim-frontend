@@ -243,25 +243,25 @@ export default function ProfileSettings() {
             </h3>
 
             {/* Check specifically if the DISCORD ID is linked and verified */}
-            {user?.discord_id && user?.is_verified ? (
-              <div className="flex flex-col md:flex-row items-center justify-between gap-6 bg-indigo-50 p-6 rounded-3xl border border-indigo-100 animate-in zoom-in-95 duration-300">
+            {user?.is_verified ? (
+              <div className="flex flex-col md:flex-row items-center justify-between gap-6 bg-indigo-50 p-6 rounded-3xl border border-indigo-100 animate-in zoom-in-95">
+                {/* Left Side: Status Info */}
                 <div className="flex items-center gap-4">
-                  <div className="w-14 h-14 bg-indigo-500 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-200">
-                    <CheckCircle size={28} />
+                  <div className="w-12 h-12 bg-indigo-500 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-200">
+                    <CheckCircle size={24} />
                   </div>
                   <div>
-                    <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Status: Fully Linked</p>
-                    <p className="font-bold text-slate-700 text-lg tracking-tight">@{user.discord_id}</p>
+                    <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Linked Account</p>
+                    <p className="font-bold text-slate-700">Verified Discord ID: {user.discord_id || discordId}</p>
                   </div>
                 </div>
 
-                {/* UNLINK BUTTON: Crucial for UX */}
+                {/* 🔥 THE UNLINK BUTTON (Add this now) */}
                 <button
                   onClick={handleUnlinkDiscord}
-                  className="group flex items-center gap-2 px-5 py-3 rounded-xl bg-white border border-indigo-100 text-red-500 font-black text-[10px] uppercase tracking-widest hover:bg-red-50 hover:border-red-200 transition-all"
+                  className="w-full md:w-auto px-6 py-3 rounded-xl bg-white border border-red-100 text-red-500 font-black text-[10px] uppercase tracking-widest hover:bg-red-50 hover:border-red-200 transition-all flex items-center justify-center gap-2"
                 >
-                  <X size={14} className="group-hover:rotate-90 transition-transform" />
-                  Unlink Account
+                  <X size={14} /> Unlink Discord
                 </button>
               </div>
             ) : (

@@ -47,10 +47,12 @@ export default function AdminOrders({ isStudentView = false }) {
 
       // Filter logic: Admin sees all, Student sees only their finished
       const isVisible = isStudentView ? isFinished : true;
-      const isOwner = isStudentView ? String(o.user_id) === String(user?.id) : true;
+      const isOwner = isStudentView ? String(o.user_id || o.userId) === String(user?.id) : true;
 
       const searchLower = searchTerm.toLowerCase();
-      const nameMatch = String(o.item_name || "").toLowerCase().includes(searchLower);
+      // FIX: Check both itemName and item_name for search matching
+      const currentItemName = String(o.itemName || o.item_name || "");
+      const nameMatch = currentItemName.toLowerCase().includes(searchLower);
       const studentNameMatch = String(o.full_name || "").toLowerCase().includes(searchLower);
       const emailMatch = String(o.email || "").toLowerCase().includes(searchLower);
       const idMatch = String(o.id).includes(searchLower);
@@ -67,6 +69,12 @@ export default function AdminOrders({ isStudentView = false }) {
       ['PENDING', 'AWAITING_VERIFICATION', 'READY', 'APPROVED'].includes(String(o.status).toUpperCase())
     ).length;
   }, [orders]);
+
+  // FIX: Added logging to verify ID consistency during printing/scanning
+  const handlePrintAction = (order) => {
+    console.log(`Printing Ticket for Order ID: ${order.id} | Item: ${order.itemName || order.item_name}`);
+    printReceipt(order);
+  };
 
   return (
     <div className="space-y-8 p-4 text-left">
@@ -123,6 +131,7 @@ export default function AdminOrders({ isStudentView = false }) {
             <tbody className="divide-y divide-slate-50">
               {historyOrders.map((order) => (
                 <tr key={order.id} className="hover:bg-slate-50/50 transition-colors group">
+                  {/* FIX: Ensure we are displaying the unique order.id */}
                   <td className="px-6 py-4 font-black text-slate-900">#{order.id}</td>
 
                   {!isStudentView && (
@@ -133,7 +142,7 @@ export default function AdminOrders({ isStudentView = false }) {
                           {order.full_name || "Guest Student"}
                         </span>
                         <span className="text-[10px] text-slate-400 font-bold flex items-center gap-1">
-                          <Mail size={10} /> {order.email || `ID: ${order.user_id}`}
+                          <Mail size={10} /> {order.email || `ID: ${order.userId || order.user_id}`}
                         </span>
                       </div>
                     </td>
@@ -141,7 +150,8 @@ export default function AdminOrders({ isStudentView = false }) {
 
                   <td className="px-6 py-4">
                     <div className="flex flex-col">
-                      <span className="font-black text-slate-800">{order.item_name}</span>
+                      {/* FIX: Use itemName with fallback to item_name for database compatibility */}
+                      <span className="font-black text-slate-800">{order.itemName || order.item_name}</span>
                       <span className="text-[10px] text-slate-400 font-bold uppercase">{order.size}</span>
                     </div>
                   </td>
@@ -157,7 +167,7 @@ export default function AdminOrders({ isStudentView = false }) {
                   {!isStudentView && (
                     <td className="px-6 py-4 text-right">
                       <button
-                        onClick={() => printReceipt(order)}
+                        onClick={() => handlePrintAction(order)}
                         className="p-2.5 bg-slate-50 text-slate-400 group-hover:bg-emerald-600 group-hover:text-white rounded-xl transition-all active:scale-95 shadow-sm"
                         title="Re-print Audit Receipt"
                       >

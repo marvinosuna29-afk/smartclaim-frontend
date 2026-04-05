@@ -45,14 +45,17 @@ export default function Scanner() {
   };
 
   // --- 3. PROCESSING LOGIC ---
+  // --- 3. PROCESSING LOGIC ---
   const handleProcessCode = async (code) => {
     const cleanCode = code.trim();
+    // 1. Safety Lock: prevent empty scans or double-triggering
     if (!cleanCode || isProcessing) return;
 
-    setManualId(''); // Clear immediately for next scan
     setIsProcessing(true);
+    setManualId(''); // Clear immediately
 
-    const idArray = cleanCode.split(/[,\s]+/).filter(id => id.length > 0);
+    // Parse IDs and remove duplicates from the scanned string itself
+    const idArray = [...new Set(cleanCode.split(/[,\s]+/).filter(id => id.length > 0))];
 
     if (idArray.length === 0) {
       setScanResult({ success: false, message: "Invalid scan format." });
@@ -61,58 +64,70 @@ export default function Scanner() {
       return;
     }
 
-    const targetOrders = (orders || []).filter(o => idArray.includes(String(o.id)));
+    try {
+      // 2. Fetch fresh data check
+      // We check the local 'orders' state, but we rely on the BACKEND to validate
+      const targetOrders = (orders || []).filter(o => idArray.includes(String(o.id)));
 
-    if (targetOrders.length === 0) {
-      setScanResult({
-        success: false,
-        message: `No active records for: ${idArray.join(", ")}`
-      });
-      playFeedback(false);
-    } else {
-      const claimable = targetOrders.filter(o =>
-        ['READY', 'APPROVED', 'RELEASE_READY', 'AWAITING_VERIFICATION'].includes(String(o.status || "").toUpperCase())
-      );
-
-      const alreadyClaimed = targetOrders.filter(o =>
-        ['CLAIMED', 'COMPLETED', 'RELEASED'].includes(String(o.status || "").toUpperCase())
-      );
-
-      if (claimable.length > 0) {
-        const claimIds = claimable.map(o => o.id);
-        const adminId = user?.id || user?.user_id;
-
-        const result = await processScanClaim(claimIds, adminId);
-
-        if (result.success) {
-          // Fire and forget prints so UI stays snappy, 
-          // or await them if you want to ensure they finish
-          for (const order of claimable) {
-            printReceipt(order).catch(err => console.error("Print failed:", err));
-          }
-
-          await incrementQueue(adminId);
-
-          setScanResult({
-            success: true,
-            message: `AUTHORIZED: ${claimable.length} Item(s) Released`,
-            details: claimable.map(o => o.item_name).join(", ")
-          });
-          playFeedback(true);
-          setTimeout(() => setScanResult(null), 3000);
-        } else {
-          setScanResult({ success: false, message: result.message || "Update Failed" });
-          playFeedback(false);
-        }
-      } else if (alreadyClaimed.length > 0) {
-        setScanResult({ success: false, message: "SECURITY ALERT: Already processed." });
+      if (targetOrders.length === 0) {
+        setScanResult({
+          success: false,
+          message: `No active records found for ID: ${idArray.join(", ")}`
+        });
         playFeedback(false);
       } else {
-        setScanResult({ success: false, message: "Order not eligible for release." });
-        playFeedback(false);
+        // Filter only those that AREN'T claimed yet
+        const claimable = targetOrders.filter(o =>
+          ['READY', 'APPROVED', 'RELEASE_READY', 'AWAITING_VERIFICATION'].includes(String(o.status || "").toUpperCase())
+        );
+
+        if (claimable.length > 0) {
+          const claimIds = claimable.map(o => o.id);
+          const adminId = user?.id || user?.user_id;
+
+          // 3. The Backend is the Source of Truth
+          const result = await processScanClaim(claimIds, adminId);
+
+          if (result.success) {
+            // 4. Print only what was actually claimed in this specific action
+            for (const order of claimable) {
+              await printReceipt(order).catch(err => console.error("Print failed:", err));
+            }
+
+            if (incrementQueue) await incrementQueue(adminId);
+
+            setScanResult({
+              success: true,
+              message: `AUTHORIZED: ${claimable.length} Item(s) Released`,
+              details: claimable.map(o => o.itemName || o.item_name).join(", ")
+            });
+            playFeedback(true);
+            
+            // Auto-reset result after 3 seconds so scanner is ready again
+            setTimeout(() => setScanResult(null), 3000);
+          } else {
+            setScanResult({ success: false, message: result.message || "Update Failed" });
+            playFeedback(false);
+          }
+        } else {
+          // Check if it was already processed
+          const alreadyClaimed = targetOrders.every(o => 
+            ['CLAIMED', 'COMPLETED', 'RELEASED'].includes(String(o.status || "").toUpperCase())
+          );
+          
+          setScanResult({ 
+            success: false, 
+            message: alreadyClaimed ? "SECURITY ALERT: Already processed." : "Order not eligible for release." 
+          });
+          playFeedback(false);
+        }
       }
+    } catch (error) {
+      console.error("Scanner Error:", error);
+      setScanResult({ success: false, message: "System Error. Check Console." });
+    } finally {
+      setIsProcessing(false);
     }
-    setIsProcessing(false);
   };
 
   return (

@@ -376,11 +376,12 @@ export const AppProvider = ({ children }) => {
     },
     // --- PRINT & ANALYTICS ---
     printReceipt: async (order) => {
-      const student = users.find(u => String(u.id) === String(order.user_id || order.userId));
-      const studentName = order.full_name || student?.name || "Guest Student";
+      // 🛡️ FIX: Ensure we use 'order.full_name' which we enriched in refreshData
+      const studentName = order.full_name || "Guest Student";
+      const uniqueId = order.id; // This MUST be the primary key from the DB
 
       try {
-        console.log("Generating App-Compatible Bitmap...");
+        console.log(`Starting Print for Unique Order: #${uniqueId}`);
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
         canvas.width = 384;
@@ -389,12 +390,18 @@ export const AppProvider = ({ children }) => {
         ctx.fillStyle = 'white';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.fillStyle = 'black';
-        ctx.font = 'bold 24px Courier';
+        ctx.font = 'bold 26px Courier';
         ctx.textAlign = 'center';
         ctx.fillText("OFFICIAL RECEIPT", 192, 40);
+
+        ctx.font = '22px Courier';
+        // Use the Unique ID here so the scanner knows EXACTLY which row to update
+        ctx.fillText(`ORDER ID: ${uniqueId}`, 192, 85);
+
         ctx.font = '18px Courier';
-        ctx.fillText(`ORDER: #${order.id}`, 192, 80);
-        ctx.fillText(studentName.toUpperCase(), 192, 120);
+        ctx.fillText(studentName.toUpperCase(), 192, 130);
+
+        // ... rest of your Bluetooth logic stays the same ...
 
         const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
         const bytes = new Uint8Array((canvas.width * canvas.height) / 8);
@@ -503,30 +510,60 @@ export const AppProvider = ({ children }) => {
       const r = await api('/api/orders', 'POST', payload);
 
       if (r.ok) {
-        const newId = r.data.orderId;
-
-        setOrders(prev => {
-          // 🛡️ THE GATEKEEPER: Check if the Socket already added this ID
-          if (prev.some(o => String(o.id) === String(newId))) {
-            return prev;
-          }
-
-          const newLocalOrder = {
-            id: newId,
-            user_id: currentId,
-            status: 'PENDING',
-            item_name: orderData.itemName,
-            size: orderData.size,
-            created_at: new Date().toISOString()
-          };
-          return [newLocalOrder, ...prev];
-        });
-
-        // 2. Still refresh to sync with DB specifics
+        // 🛡️ DO NOT manually add to state here. 
+        // Let the Socket 'order_created' handle it to avoid ID mismatches.
         await refreshData();
         return { success: true };
       }
       return { success: false, message: r.data?.message || "Failed" };
+    },
+
+    processScanClaim: async (orderIds, adminId) => {
+      const normalizedScannedIds = Array.isArray(orderIds)
+        ? orderIds.map(id => String(id))
+        : [String(orderIds)];
+
+      const response = await api('/api/orders/scan-claim', 'POST', {
+        orderIds: normalizedScannedIds,
+        adminId
+      });
+
+      if (response.ok) {
+        // 🛡️ ATOMIC UPDATE: We must use the 'o.id' strictly.
+        setOrders(prev => prev.map(o => {
+          const isTarget = normalizedScannedIds.includes(String(o.id));
+          if (isTarget) {
+            return { ...o, status: 'CLAIMED' };
+          }
+          return o;
+        }));
+
+        // Give the DB a moment to finish the write, then sync everything.
+        setTimeout(() => refreshData(), 800);
+
+        // Update Inventory UI snappily
+        setItems(prevItems => prevItems.map(item => {
+          const matchingOrders = orders.filter(o =>
+            normalizedScannedIds.includes(String(o.id)) &&
+            (String(o.item_id) === String(item.id) || o.item_name === item.name)
+          );
+
+          if (matchingOrders.length === 0) return item;
+
+          const updatedSizes = { ...item.sizes };
+          matchingOrders.forEach(order => {
+            const sizeKey = order.size;
+            if (updatedSizes[sizeKey] > 0) {
+              updatedSizes[sizeKey] = Number(updatedSizes[sizeKey]) - 1;
+            }
+          });
+
+          return { ...item, sizes: updatedSizes };
+        }));
+
+        return { success: true };
+      }
+      return { success: false, message: response.data?.message || "Server rejected claim" };
     },
     toggleLowStock: async (itemId) => {
       const adminId = user?.user_id || user?.id;

@@ -28,30 +28,29 @@ export default function StudentPortal({ needsVerification, activeTab, myOrders: 
 
   // --- 🛡️ FILTER LOGIC ---
   const myOrders = useMemo(() => {
-    const sourceOrders = (propsOrders && propsOrders.length > 0) ? propsOrders : contextOrders;
+    // Priority: Use contextOrders if they exist, as they are live-updated by sockets
+    const sourceOrders = contextOrders.length > 0 ? contextOrders : (propsOrders || []);
     const currentUserId = String(user?.user_id || user?.id || "").trim();
 
-    if (!currentUserId || !sourceOrders || sourceOrders.length === 0) return [];
+    if (!currentUserId || sourceOrders.length === 0) return [];
 
     return sourceOrders.filter(o => {
       const orderOwnerId = String(
         o.user_id || o.userId || o.student_id || o.studentId || o.owner_id || ""
       ).trim();
-
-      // ✅ FIX: Actually return the boolean result
       return orderOwnerId === currentUserId;
     });
-  }, [propsOrders, contextOrders, user]);
+  }, [propsOrders, contextOrders, user]); // Now it watches contextOrders correctly
 
   const pendingPayment = useMemo(() => {
     return myOrders.filter(o => {
       // Normalize the status string
       const s = String(o.status || "").toUpperCase().trim();
-      
+
       // ✅ FIX: Catching both 'PENDING' and any status that requires a receipt
       const needsPayment = s === 'PENDING' || s === 'AWAITING_PAYMENT' || s === 'UNPAID';
       const hasNoProof = !o.receipt_url && !o.reference_number;
-      
+
       return needsPayment && hasNoProof;
     });
   }, [myOrders]);
@@ -81,17 +80,18 @@ export default function StudentPortal({ needsVerification, activeTab, myOrders: 
   }, [myOrders]);
 
   useEffect(() => {
-    if (showQRModal && selectedOrderForQR) {
-      // Change 'orders.find' to 'contextOrders.find'
-      const currentOrder = contextOrders.find(o => String(o.id) === String(selectedOrderForQR.id));
-      const s = String(currentOrder?.status || "").toUpperCase();
-      if (['CLAIMED', 'RELEASED', 'COMPLETED'].includes(s)) {
+    if (showQRModal) {
+      // Check if ANY of the orders currently in the QR modal have been claimed
+      const stillReady = readyOrders.length > 0;
+
+      // If the admin claimed the orders, readyOrders.length will become 0
+      // because our readyOrders memo filters out 'CLAIMED' status.
+      if (!stillReady) {
         setShowQRModal(false);
         setSelectedOrderForQR(null);
       }
     }
-    // Change 'orders' to 'contextOrders' in the dependency array too
-  }, [contextOrders, showQRModal, selectedOrderForQR]);
+  }, [readyOrders, showQRModal]); // Watch readyOrders specifically
 
   if (needsVerification && user?.role?.toLowerCase() !== 'admin') {
     return (

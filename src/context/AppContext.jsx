@@ -114,7 +114,13 @@ export const AppProvider = ({ children }) => {
 
     const events = {
       office_status_updated: setOfficeStatus,
-      order_created: (n) => setOrders(prev => prev.some(o => String(o.id) === String(n.id)) ? prev : [n, ...prev]),
+      order_created: (newOrder) => {
+        setOrders(prev => {
+          if (prev.some(o => String(o.id) === String(newOrder.id))) return prev;
+          // Ensure the new order is formatted like your existing ones
+          return [{ ...newOrder, status: (newOrder.status || 'PENDING').toUpperCase() }, ...prev];
+        });
+      },
       inventory_updated: (d) => setItems(prev => prev.map(i => i.id === d.itemId ? { ...i, ...d } : i)),
       order_updated: (d) => {
         setOrders(prev => prev.map(o => {
@@ -243,59 +249,46 @@ export const AppProvider = ({ children }) => {
     },
 
     processScanClaim: async (orderIds, adminId) => {
-      // 1. Convert input to an array of strings (handles single ID or array)
       const normalizedIds = Array.isArray(orderIds)
         ? orderIds.map(id => String(id).trim())
         : [String(orderIds).trim()];
 
-      // 🛡️ FRONT-END GUARD: Check if ANY of these IDs are already claimed in our local state
-      const alreadyClaimed = orders.filter(o =>
-        normalizedIds.includes(String(o.id)) &&
-        String(o.status).toUpperCase() === 'CLAIMED'
+      // 🛡️ Guard: Check if ANY of these are already claimed locally
+      const alreadyClaimed = orders.some(o =>
+        normalizedIds.includes(String(o.id)) && o.status.toUpperCase() === 'CLAIMED'
       );
 
-      if (alreadyClaimed.length > 0) {
-        console.warn("Manual Entry Blocked: Order(s) already claimed locally.", normalizedIds);
-        return { success: false, message: "Order already claimed." };
-      }
+      if (alreadyClaimed) return { success: false, message: "Order already claimed." };
 
-      // 2. Hit the Backend
-      const response = await api('/api/orders/scan-claim', 'POST', {
-        orderIds: normalizedIds,
-        adminId
-      });
+      const response = await api('/api/orders/scan-claim', 'POST', { orderIds: normalizedIds, adminId });
 
       if (response.ok) {
-        // ✅ SUCCESS: Update Orders and Inventory locally immediately
-        setOrders(prevOrders => {
-          const updatedOrders = prevOrders.map(o =>
-            normalizedIds.includes(String(o.id)) ? { ...o, status: 'CLAIMED' } : o
+        // 1. Update Orders State
+        setOrders(prev => prev.map(o =>
+          normalizedIds.includes(String(o.id)) ? { ...o, status: 'CLAIMED' } : o
+        ));
+
+        // 2. Update Inventory State (Derived from the IDs we just processed)
+        setItems(prevItems => prevItems.map(item => {
+          const claimedForThisItem = orders.filter(o =>
+            normalizedIds.includes(String(o.id)) &&
+            (String(o.item_id) === String(item.id) || o.item_name === item.name)
           );
 
-          setItems(prevItems => prevItems.map(item => {
-            const matching = updatedOrders.filter(o =>
-              normalizedIds.includes(String(o.id)) &&
-              (String(o.item_id) === String(item.id) || o.item_name === item.name)
-            );
+          if (claimedForThisItem.length === 0) return item;
 
-            if (matching.length === 0) return item;
+          const newSizes = { ...item.sizes };
+          claimedForThisItem.forEach(o => {
+            const sizeKey = Object.keys(newSizes).find(k => k.toLowerCase() === String(o.size).toLowerCase());
+            if (sizeKey && newSizes[sizeKey] > 0) newSizes[sizeKey] -= 1;
+          });
+          return { ...item, sizes: newSizes };
+        }));
 
-            const updatedSizes = { ...item.sizes };
-            matching.forEach(o => {
-              const key = Object.keys(updatedSizes).find(k => k.toUpperCase() === String(o.size).toUpperCase());
-              if (key && updatedSizes[key] > 0) updatedSizes[key] -= 1;
-            });
-            return { ...item, sizes: updatedSizes };
-          }));
-
-          return updatedOrders;
-        });
-
-        // 3. Background Sync
-        setTimeout(() => refreshData(), 1000);
+        // 3. Optional: Brief delay before full refresh to let backend DB settle
+        setTimeout(() => refreshData(), 2000);
         return { success: true };
       }
-
       return { success: false, message: response.data?.message || "Claim failed" };
     },
 

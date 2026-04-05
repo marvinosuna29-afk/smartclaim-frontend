@@ -35,42 +35,35 @@ export default function QueueMonitor() {
 
     // 3. ACCURATE POSITION LOGIC
     const queuePosition = useMemo(() => {
-        // 1. Safety check: If no order or no orders list, default to 1
-        if (!activeOrder || !orders.length) return 1;
-
-        // 2. Ensure we are comparing Numbers to Numbers
-        const myId = Number(activeOrder.id);
+        // Use primitives for the calculation to keep it stable
+        const myId = Number(activeOrder?.id || 0);
         const servingId = Number(currentServingId || 0);
 
-        // 3. If I am the one being served or my ID is somehow behind the pointer, I'm #1
+        if (!myId || !orders.length) return 1;
         if (myId <= servingId) return 1;
 
-        // 4. Count how many valid orders exist between the pointer and me
-        // Use a simple filter. Do NOT call other functions or set state here.
-        const aheadCount = orders.reduce((acc, o) => {
+        // 🛡️ Calculate based on the current orders array
+        const aheadCount = orders.filter(o => {
             const oId = Number(o.id);
             const status = String(o.status || "").toUpperCase();
-
-            // Only count orders that:
-            // - Are between the current serving ID and my ID
-            // - Are NOT claimed/cancelled (still active)
-            if (oId >= servingId && oId < myId && status !== 'CLAIMED' && status !== 'CANCELLED') {
-                return acc + 1;
-            }
-            return acc;
-        }, 0);
+            return oId >= servingId && oId < myId && status !== 'CLAIMED' && status !== 'CANCELLED';
+        }).length;
 
         return aheadCount + 1;
 
-        // CRITICAL: We only use the length of orders as a dependency 
-        // to prevent deep-object comparison loops.
-    }, [orders.length, activeOrder?.id, currentServingId]);
+        // 🛡️ CHANGE: Use [orders, myId, servingId] 
+        // This ensures if orders content changes, position updates, 
+        // but it won't loop because it's not setting state.
+    }, [orders, activeOrder?.id, currentServingId]);
 
-    // 4. STATS & STYLING CONSTANTS
-    const totalInQueue = orders.filter(o => {
-        const s = String(o.status).toUpperCase();
-        return s !== 'CLAIMED' && s !== 'CANCELLED';
-    }).length;
+    // 4. STATS & STYLING CONSTANTS (Convert to useMemo!)
+    // Previously this was a raw constant, meaning it ran on EVERY render.
+    const totalInQueue = useMemo(() => {
+        return orders.filter(o => {
+            const s = String(o.status).toUpperCase();
+            return s !== 'CLAIMED' && s !== 'CANCELLED';
+        }).length;
+    }, [orders.length]);
 
     const isReady = String(activeOrder.status).toUpperCase() === 'READY';
     const waitPerPerson = isReady ? 1 : 3;

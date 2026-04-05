@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, memo } from 'react';
 import { useApp } from '../context/AppContext';
 import {
   Package, Plus, Minus, Search, Trash2,
@@ -6,6 +6,59 @@ import {
   Shirt, Bookmark, QrCode, Bell, BellOff
 } from 'lucide-react';
 
+// --- SUB-COMPONENT: STOCK CARD ---
+// Memoized to prevent re-renders unless specific item data changes
+const StockCard = memo(({ item, size, isActuallyLow, toggleSizeVisibility, updateStock }) => {
+  const isHidden = item.hidden_sizes?.includes(size);
+  const count = item.sizes[size];
+
+  return (
+    <div 
+      className={`p-5 rounded-[2.5rem] border-2 transition-all flex flex-col justify-between gap-4 
+      ${isHidden ? 'bg-slate-50 border-slate-100 opacity-60' : 'bg-white border-slate-100 shadow-sm'}`}
+    >
+      <div className="flex justify-between items-center">
+        <span className={`text-[11px] font-black uppercase ${isHidden ? 'text-slate-400' : 'text-slate-900'}`}>
+          {size}
+        </span>
+        <button
+          onClick={() => toggleSizeVisibility(item.id, size)}
+          className={`p-2 rounded-xl transition-all ${
+            isHidden ? 'bg-slate-200 text-slate-500' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100 active:scale-90'
+          }`}
+        >
+          {isHidden ? <EyeOff size={14} /> : <Eye size={14} />}
+        </button>
+      </div>
+
+      <div className="text-center">
+        <span className={`text-4xl font-black tracking-tighter block ${
+          isActuallyLow && !isHidden ? 'text-amber-600' : 'text-slate-900'
+        }`}>
+          {count}
+        </span>
+        <p className="text-[8px] font-black uppercase text-slate-400">In Stock</p>
+      </div>
+
+      <div className="flex items-center justify-between bg-slate-100/50 rounded-2xl p-1.5">
+        <button 
+          onClick={() => updateStock(item.id, size, -1)} 
+          className="w-9 h-9 flex items-center justify-center bg-white rounded-xl shadow-sm hover:text-red-500 transition-all active:scale-90"
+        >
+          <Minus size={14} />
+        </button>
+        <button 
+          onClick={() => updateStock(item.id, size, 1)} 
+          className="w-9 h-9 flex items-center justify-center bg-white rounded-xl shadow-sm hover:text-emerald-500 transition-all active:scale-90"
+        >
+          <Plus size={14} />
+        </button>
+      </div>
+    </div>
+  );
+});
+
+// --- MAIN COMPONENT ---
 const AdminInventory = () => {
   const { 
     items = [], 
@@ -58,7 +111,7 @@ const AdminInventory = () => {
 
   return (
     <div className="space-y-8 pb-12 text-left animate-in fade-in duration-700">
-
+      
       {/* --- HEADER SECTION --- */}
       <header className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
         <div>
@@ -141,12 +194,15 @@ const AdminInventory = () => {
       <div className="space-y-8">
         {filteredItems.map((item) => {
           const sizeKeys = Object.keys(item.sizes || {});
-          // Normalize check for Boolean or Integer (1/0)
           const isActuallyLow = item.is_low_stock === true || Number(item.is_low_stock) === 1;
 
           return (
-            <div key={item.id} className={`bg-white p-6 md:p-10 rounded-[3.5rem] border-2 flex flex-col xl:flex-row gap-10 hover:border-emerald-200 transition-all shadow-sm ${isActuallyLow ? 'border-amber-200 bg-amber-50/10' : 'border-slate-100'}`}>
-
+            <div 
+              key={item.id} 
+              className={`bg-white p-6 md:p-10 rounded-[3.5rem] border-2 flex flex-col xl:flex-row gap-10 hover:border-emerald-200 transition-all shadow-sm 
+              ${isActuallyLow ? 'border-amber-200 bg-amber-50/10' : 'border-slate-100'}`}
+            >
+              {/* Product Identity Column */}
               <div className="xl:w-64 flex-shrink-0 flex flex-col justify-between border-b xl:border-b-0 xl:border-r border-slate-100 pb-6 xl:pb-0 xl:pr-10">
                 <div className="space-y-3">
                   <div className="flex items-center gap-2">
@@ -159,13 +215,13 @@ const AdminInventory = () => {
                 </div>
 
                 <div className="mt-6 flex flex-col gap-4">
-                  {/* FIXED: Passing item.id AND current status */}
                   <button
                     onClick={() => toggleLowStock(item.id, isActuallyLow)}
-                    className={`flex items-center gap-2 text-[10px] font-black uppercase transition-colors px-4 py-2 rounded-xl border w-fit ${isActuallyLow
+                    className={`flex items-center gap-2 text-[10px] font-black uppercase transition-colors px-4 py-2 rounded-xl border w-fit ${
+                      isActuallyLow
                         ? 'bg-amber-100 text-amber-700 border-amber-200'
                         : 'bg-slate-50 text-slate-400 border-slate-100 hover:text-emerald-600'
-                      }`}
+                    }`}
                   >
                     {isActuallyLow ? <BellOff size={14} /> : <Bell size={14} />}
                     {isActuallyLow ? "Disable Alert" : "Mark Low Stock"}
@@ -180,37 +236,18 @@ const AdminInventory = () => {
                 </div>
               </div>
 
+              {/* Grid of Sizes */}
               <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-                {sizeKeys.map((size) => {
-                  const isHidden = item.hidden_sizes?.includes(size);
-                  const count = item.sizes[size];
-
-                  return (
-                    <div key={size} className={`p-5 rounded-[2.5rem] border-2 transition-all flex flex-col justify-between gap-4 ${isHidden ? 'bg-slate-50 border-slate-100 opacity-60' : 'bg-white border-slate-100 shadow-sm'}`}>
-                      <div className="flex justify-between items-center">
-                        <span className={`text-[11px] font-black uppercase ${isHidden ? 'text-slate-400' : 'text-slate-900'}`}>{size}</span>
-                        <button
-                          onClick={() => toggleSizeVisibility(item.id, size)}
-                          className={`p-2 rounded-xl transition-all ${isHidden ? 'bg-slate-200 text-slate-500' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100 active:scale-90'}`}
-                        >
-                          {isHidden ? <EyeOff size={14} /> : <Eye size={14} />}
-                        </button>
-                      </div>
-
-                      <div className="text-center">
-                        <span className={`text-4xl font-black tracking-tighter block ${isActuallyLow && !isHidden ? 'text-amber-600' : 'text-slate-900'}`}>
-                          {count}
-                        </span>
-                        <p className="text-[8px] font-black uppercase text-slate-400">In Stock</p>
-                      </div>
-
-                      <div className="flex items-center justify-between bg-slate-100/50 rounded-2xl p-1.5">
-                        <button onClick={() => updateStock(item.id, size, -1)} className="w-9 h-9 flex items-center justify-center bg-white rounded-xl shadow-sm hover:text-red-500 transition-all active:scale-90"><Minus size={14} /></button>
-                        <button onClick={() => updateStock(item.id, size, 1)} className="w-9 h-9 flex items-center justify-center bg-white rounded-xl shadow-sm hover:text-emerald-500 transition-all active:scale-90"><Plus size={14} /></button>
-                      </div>
-                    </div>
-                  );
-                })}
+                {sizeKeys.map((size) => (
+                  <StockCard 
+                    key={`${item.id}-${size}`} // 🛡️ Stability Fix: Composite Key
+                    item={item}
+                    size={size}
+                    isActuallyLow={isActuallyLow}
+                    toggleSizeVisibility={toggleSizeVisibility}
+                    updateStock={updateStock}
+                  />
+                ))}
               </div>
             </div>
           );

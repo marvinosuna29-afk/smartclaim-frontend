@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useApp } from './context/AppContext';
 
 // --- COMPONENTS ---
@@ -17,10 +17,9 @@ import AnnouncementManager from './pages/AnnouncementManager';
 import ProfileSettings from './pages/ProfileSettings';
 
 function App() {
-  // 1. ALL HOOKS MUST BE HERE AT THE TOP LEVEL
   const {
     user, isLocked, loading, officeStatus, refreshData,
-    orders, items, announcements, currentQueue, deleteItem 
+    orders, items, announcements, currentQueue
   } = useApp();
   
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -47,7 +46,12 @@ function App() {
     setIsSidebarOpen(false);
   };
 
-  // 2. EARLY RETURNS (LOADING/LOGIN) GO AFTER ALL HOOKS
+  // --- 1. PRE-CALCULATE USER STATE ---
+  const role = user?.role?.toLowerCase();
+  const isStudent = role === 'student';
+  const isVerified = Number(user?.is_verified) === 1;
+
+  // --- 2. EARLY RETURNS (STILL AFTER ALL HOOKS) ---
   if (loading && !user) {
     return (
       <div className="h-screen w-full flex items-center justify-center bg-emerald-50">
@@ -61,62 +65,48 @@ function App() {
 
   if (!user) return <Login />;
 
-  // 3. RENDER CONTENT (Uses variables from the top level)
-  const renderContent = () => {
-    const role = user?.role?.toLowerCase();
-    const isStudent = role === 'student';
-    const isVerified = Number(user?.is_verified) === 1;
-
-    if (isStudent && !isVerified) {
-      return <ProfileSettings />;
-    }
-
-    const renderStudentPortal = (view) => (
-      <StudentPortal
-        activeTab={view}
-        myOrders={orders || []} 
-        items={items || []}
-        announcements={announcements || []}
-        currentQueue={currentQueue}
-        officeStatus={officeStatus}
-      />
-    );
-
+  // --- 3. STABLE CONTENT SELECTION ---
+  // Instead of a function, we use a variable. This helps the minifier map the tree.
+  let Content;
+  
+  if (isStudent && !isVerified) {
+    Content = <ProfileSettings />;
+  } else {
     switch (activeTab) {
       case 'dashboard':
-        return isStudent 
-          ? renderStudentPortal('dashboard') 
-          // ✅ FIX: Added setActiveTab prop here
-          : <AdminDashboard setActiveTab={handleNavigate} />; 
-
+        Content = isStudent 
+          ? <StudentPortal activeTab="dashboard" myOrders={orders || []} items={items || []} announcements={announcements || []} currentQueue={currentQueue} officeStatus={officeStatus} />
+          : <AdminDashboard setActiveTab={handleNavigate} />;
+        break;
       case 'history':
-        return isStudent ? renderStudentPortal('history') : <AdminOrders />;
-      
       case 'orders':
-        return isStudent ? renderStudentPortal('dashboard') : <AdminOrders />;
-      
+        Content = isStudent 
+          ? <StudentPortal activeTab="history" myOrders={orders || []} items={items || []} announcements={announcements || []} currentQueue={currentQueue} officeStatus={officeStatus} />
+          : <AdminOrders />;
+        break;
       case 'inventory':
-        return isStudent ? renderStudentPortal('dashboard') : <AdminInventory />;
-      
+        Content = isStudent 
+          ? <StudentPortal activeTab="dashboard" myOrders={orders || []} items={items || []} announcements={announcements || []} currentQueue={currentQueue} officeStatus={officeStatus} />
+          : <AdminInventory />;
+        break;
       case 'profile':
-        return <ProfileSettings />;
-      
+        Content = <ProfileSettings />;
+        break;
       case 'announcements':
-        return <AnnouncementManager />;
-      
+        Content = <AnnouncementManager />;
+        break;
       case 'users':
-        return <AdminUsers />;
-      
+        Content = <AdminUsers />;
+        break;
       case 'scanner':
-        return <LiveScanner />;
-      
+        Content = <LiveScanner />;
+        break;
       default:
-        return isStudent 
-          ? renderStudentPortal('dashboard') 
-          // ✅ FIX: Added setActiveTab prop to default case as well
+        Content = isStudent 
+          ? <StudentPortal activeTab="dashboard" myOrders={orders || []} items={items || []} announcements={announcements || []} currentQueue={currentQueue} officeStatus={officeStatus} />
           : <AdminDashboard setActiveTab={handleNavigate} />;
     }
-  };
+  }
 
   return (
     <div className="h-screen w-full overflow-hidden bg-slate-50 flex flex-col">
@@ -138,7 +128,8 @@ function App() {
           isLocked={isLocked || false}
           userRole={user?.role}
         >
-          {renderContent()}
+          {/* Inject the pre-defined Content variable */}
+          {Content}
         </Layout>
       </div>
     </div>

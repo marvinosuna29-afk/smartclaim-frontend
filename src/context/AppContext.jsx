@@ -12,6 +12,15 @@ export const AppProvider = ({ children }) => {
     try { return saved ? JSON.parse(saved) : null; } catch (e) { return null; }
   });
 
+  const readyOrders = useMemo(() => {
+    // We filter orders that belong to the logged-in user AND are status 'READY'
+    const currentId = String(user?.id || user?.user_id || "");
+    return orders.filter(o =>
+      String(o.user_id || o.userId) === currentId &&
+      String(o.status).toUpperCase() === 'READY'
+    );
+  }, [orders, user?.id]);
+
   const [users, setUsers] = useState([]);
   const [items, setItems] = useState([]);
   const [orders, setOrders] = useState([]);
@@ -120,6 +129,12 @@ export const AppProvider = ({ children }) => {
       setLoading(false);
     }
   }, [user, normalizeUser]);
+
+  useEffect(() => {
+    if (user?.id) {
+      refreshData();
+    }
+  }, [user?.id]);
 
   // --- SOCKET LISTENERS ---
   useEffect(() => {
@@ -358,7 +373,7 @@ export const AppProvider = ({ children }) => {
   return (
     <AppContext.Provider value={{
       user, users, items, orders, announcements, officeStatus, loading, privateAlert,
-      currentQueue,
+      currentQueue, readyOrders,
       setUser, refreshData, ...actions
     }}>
       {children}

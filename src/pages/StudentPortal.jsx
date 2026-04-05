@@ -207,8 +207,17 @@ export default function StudentPortal({ needsVerification, activeTab, myOrders: 
           {/* 🎟️ HERO / QUEUE SECTION - STACKED FOR PERSISTENCE */}
           <div className="space-y-6">
 
-            {/* 1. READY BANNER: Shows ONLY if readyOrders has items */}
-            {readyOrders.length > 0 && (
+            {/* 1. READY BANNER LOGIC */}
+            {loading && orders.length === 0 ? (
+              /* A: SYNCING STATE - Holds the spot during refresh so the UI doesn't "jump" or revert */
+              <div className="h-48 w-full bg-slate-50 rounded-[3rem] border border-dashed border-slate-200 animate-pulse flex items-center justify-center">
+                <div className="flex items-center gap-3">
+                  <Loader2 className="animate-spin text-slate-300" size={20} />
+                  <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Verifying Ticket Status...</p>
+                </div>
+              </div>
+            ) : readyOrders.length > 0 ? (
+              /* B: READY STATE - Shows when data is confirmed */
               <div className="relative overflow-hidden bg-emerald-600 rounded-[3rem] p-10 md:p-14 text-white shadow-2xl animate-in zoom-in duration-500">
                 <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-10">
                   <div className="space-y-4 text-center md:text-left">
@@ -239,7 +248,7 @@ export default function StudentPortal({ needsVerification, activeTab, myOrders: 
                   </button>
                 </div>
               </div>
-            )}
+            ) : null}
 
             {/* 2. QUEUE MONITOR: Always rendered, no longer hidden by the banner */}
             <QueueMonitor />

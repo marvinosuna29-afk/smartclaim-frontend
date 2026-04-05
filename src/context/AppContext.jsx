@@ -243,19 +243,43 @@ export const AppProvider = ({ children }) => {
     },
 
     processScanClaim: async (orderIds, adminId) => {
-      const normalizedScannedIds = Array.isArray(orderIds) ? orderIds.map(id => String(id)) : [String(orderIds)];
-      const response = await api('/api/orders/scan-claim', 'POST', { orderIds: normalizedScannedIds, adminId });
+      // 1. Convert input to an array of strings (handles single ID or array)
+      const normalizedIds = Array.isArray(orderIds)
+        ? orderIds.map(id => String(id).trim())
+        : [String(orderIds).trim()];
+
+      // 🛡️ FRONT-END GUARD: Check if ANY of these IDs are already claimed in our local state
+      const alreadyClaimed = orders.filter(o =>
+        normalizedIds.includes(String(o.id)) &&
+        String(o.status).toUpperCase() === 'CLAIMED'
+      );
+
+      if (alreadyClaimed.length > 0) {
+        console.warn("Manual Entry Blocked: Order(s) already claimed locally.", normalizedIds);
+        return { success: false, message: "Order already claimed." };
+      }
+
+      // 2. Hit the Backend
+      const response = await api('/api/orders/scan-claim', 'POST', {
+        orderIds: normalizedIds,
+        adminId
+      });
 
       if (response.ok) {
+        // ✅ SUCCESS: Update Orders and Inventory locally immediately
         setOrders(prevOrders => {
           const updatedOrders = prevOrders.map(o =>
-            normalizedScannedIds.includes(String(o.id)) ? { ...o, status: 'CLAIMED' } : o
+            normalizedIds.includes(String(o.id)) ? { ...o, status: 'CLAIMED' } : o
           );
+
           setItems(prevItems => prevItems.map(item => {
             const matching = updatedOrders.filter(o =>
-              normalizedScannedIds.includes(String(o.id)) && (o.item_id === item.id || o.item_name === item.name)
+              normalizedIds.includes(String(o.id)) &&
+              (String(o.item_id) === String(item.id) || o.item_name === item.name)
             );
+
             if (matching.length === 0) return item;
+
             const updatedSizes = { ...item.sizes };
             matching.forEach(o => {
               const key = Object.keys(updatedSizes).find(k => k.toUpperCase() === String(o.size).toUpperCase());
@@ -263,12 +287,16 @@ export const AppProvider = ({ children }) => {
             });
             return { ...item, sizes: updatedSizes };
           }));
+
           return updatedOrders;
         });
+
+        // 3. Background Sync
         setTimeout(() => refreshData(), 1000);
         return { success: true };
       }
-      return { success: false, message: response.data?.message };
+
+      return { success: false, message: response.data?.message || "Claim failed" };
     },
 
     updateOrderStatusBulk: async (ids, status) => {

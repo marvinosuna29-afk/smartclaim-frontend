@@ -45,82 +45,55 @@ export default function Scanner() {
   };
 
   // --- 3. PROCESSING LOGIC ---
-  // --- 3. PROCESSING LOGIC ---
   const handleProcessCode = async (code) => {
     const cleanCode = code.trim();
-    // 1. Safety Lock: prevent empty scans or double-triggering
     if (!cleanCode || isProcessing) return;
 
     setIsProcessing(true);
-    setManualId(''); // Clear immediately
+    // Note: Don't clear manualId yet so the user can see what they typed if it fails
 
-    // Parse IDs and remove duplicates from the scanned string itself
+    // 1. Parse IDs
     const idArray = [...new Set(cleanCode.split(/[,\s]+/).filter(id => id.length > 0))];
 
     if (idArray.length === 0) {
-      setScanResult({ success: false, message: "Invalid scan format." });
+      setScanResult({ success: false, message: "Invalid ID format." });
       playFeedback(false);
       setIsProcessing(false);
       return;
     }
 
     try {
-      // 2. Fetch fresh data check
-      // We check the local 'orders' state, but we rely on the BACKEND to validate
-      const targetOrders = (orders || []).filter(o => idArray.includes(String(o.id)));
+      const adminId = user?.id || user?.user_id;
 
-      if (targetOrders.length === 0) {
+      // 2. Bypass local filtering and send DIRECTLY to backend
+      // This ensures even if local state is laggy, the server decides.
+      const result = await processScanClaim(idArray, adminId);
+
+      if (result.success) {
+        // Find the orders in our local list JUST for printing purposes
+        const claimable = (orders || []).filter(o => idArray.includes(String(o.id)));
+
+        for (const order of claimable) {
+          await printReceipt(order).catch(err => console.error("Print failed:", err));
+        }
+
+        if (incrementQueue) await incrementQueue(adminId);
+
+        setScanResult({
+          success: true,
+          message: `AUTHORIZED: ${idArray.length} Record(s) Processed`,
+          details: idArray.join(", ")
+        });
+        playFeedback(true);
+        setManualId(''); // Clear only on success
+        setTimeout(() => setScanResult(null), 3000);
+      } else {
+        // 3. If the backend says no, show the backend's specific error message
         setScanResult({
           success: false,
-          message: `No active records found for ID: ${idArray.join(", ")}`
+          message: result.message || "Verification Failed"
         });
         playFeedback(false);
-      } else {
-        // Filter only those that AREN'T claimed yet
-        const claimable = targetOrders.filter(o =>
-          ['READY', 'APPROVED', 'RELEASE_READY', 'AWAITING_VERIFICATION'].includes(String(o.status || "").toUpperCase())
-        );
-
-        if (claimable.length > 0) {
-          const claimIds = claimable.map(o => o.id);
-          const adminId = user?.id || user?.user_id;
-
-          // 3. The Backend is the Source of Truth
-          const result = await processScanClaim(claimIds, adminId);
-
-          if (result.success) {
-            // 4. Print only what was actually claimed in this specific action
-            for (const order of claimable) {
-              await printReceipt(order).catch(err => console.error("Print failed:", err));
-            }
-
-            if (incrementQueue) await incrementQueue(adminId);
-
-            setScanResult({
-              success: true,
-              message: `AUTHORIZED: ${claimable.length} Item(s) Released`,
-              details: claimable.map(o => o.itemName || o.item_name).join(", ")
-            });
-            playFeedback(true);
-            
-            // Auto-reset result after 3 seconds so scanner is ready again
-            setTimeout(() => setScanResult(null), 3000);
-          } else {
-            setScanResult({ success: false, message: result.message || "Update Failed" });
-            playFeedback(false);
-          }
-        } else {
-          // Check if it was already processed
-          const alreadyClaimed = targetOrders.every(o => 
-            ['CLAIMED', 'COMPLETED', 'RELEASED'].includes(String(o.status || "").toUpperCase())
-          );
-          
-          setScanResult({ 
-            success: false, 
-            message: alreadyClaimed ? "SECURITY ALERT: Already processed." : "Order not eligible for release." 
-          });
-          playFeedback(false);
-        }
       }
     } catch (error) {
       console.error("Scanner Error:", error);
@@ -177,7 +150,7 @@ export default function Scanner() {
                 </div>
                 <h2 className="text-6xl font-black text-slate-950 uppercase tracking-tighter">Standby</h2>
               </div>
-              
+
               <div className="relative group max-w-sm mx-auto">
                 <div className="absolute inset-0 bg-emerald-500/10 blur-3xl rounded-full" />
                 <input
@@ -196,7 +169,7 @@ export default function Scanner() {
                   }}
                 />
               </div>
-              
+
               <div className="flex items-center justify-center gap-12 opacity-30">
                 <div className="flex flex-col items-center gap-4"><Scan size={28} /><span className="text-[9px] font-black uppercase tracking-widest">Laser</span></div>
                 <div className="flex flex-col items-center gap-4"><Keyboard size={28} /><span className="text-[9px] font-black uppercase tracking-widest">Manual</span></div>

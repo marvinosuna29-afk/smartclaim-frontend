@@ -1,4 +1,4 @@
-// Force Update: April 6, 2026 - 1:17 AM
+// Version 1.1.0 - Loop Fix Deployment
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { io } from 'socket.io-client';
 

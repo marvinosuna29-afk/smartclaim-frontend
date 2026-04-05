@@ -22,9 +22,13 @@ export const AppProvider = ({ children }) => {
   const [currentQueue, setCurrentQueue] = useState(0);
 
   useEffect(() => {
-    const waitingCount = orders.filter(o =>
-      ['READY', 'APPROVED', 'FOR PICKUP'].includes(String(o.status).toUpperCase())
-    ).length;
+    // We only count orders that haven't been CLAIMED yet.
+    // This matches the logic in QueueMonitor.jsx
+    const waitingCount = orders.filter(o => {
+      const status = String(o.status || "").toUpperCase();
+      return status !== 'CLAIMED' && status !== 'CANCELLED';
+    }).length;
+
     setCurrentQueue(waitingCount);
   }, [orders]);
 
@@ -133,9 +137,15 @@ export const AppProvider = ({ children }) => {
       inventory_updated: (d) => setItems(prev => prev.map(i => i.id === d.itemId ? { ...i, ...d } : i)),
       order_updated: (d) => {
         setOrders(prev => prev.map(o => {
-          const targetIds = Array.isArray(d.ids) ? d.ids.map(id => String(id)) : [String(d.id || d.orderId)];
+          // Normalize IDs to strings for comparison (Aiven/DB compatibility)
+          const targetIds = Array.isArray(d.ids)
+            ? d.ids.map(id => String(id))
+            : [String(d.id || d.orderId)];
+
           if (targetIds.includes(String(o.id))) {
-            return { ...o, ...d, status: String(d.status || o.status).toUpperCase().trim() };
+            // Normalize the status to uppercase so StudentPortal and AdminDashboard don't break
+            const newStatus = String(d.status || o.status).toUpperCase().trim();
+            return { ...o, ...d, status: newStatus };
           }
           return o;
         }));
@@ -299,9 +309,20 @@ export const AppProvider = ({ children }) => {
     },
 
     updateOrderStatusBulk: async (ids, status) => {
-      const r = await api('/api/orders/status-update', 'PATCH', { ids, status, adminId: user?.id });
+      const normalizedStatus = String(status).toUpperCase();
+      const r = await api('/api/orders/status-update', 'PATCH', {
+        ids,
+        status: normalizedStatus,
+        adminId: user?.id
+      });
+
       if (r.ok) {
-        setOrders(prev => prev.map(o => ids.includes(o.id) ? { ...o, status } : o));
+        // Optimistic UI update: 
+        // Convert IDs to strings to ensure the map finds the right orders
+        const stringIds = ids.map(id => String(id));
+        setOrders(prev => prev.map(o =>
+          stringIds.includes(String(o.id)) ? { ...o, status: normalizedStatus } : o
+        ));
         return { success: true };
       }
       return { success: false };

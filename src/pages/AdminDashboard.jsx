@@ -28,7 +28,11 @@ export default function AdminDashboard({ setActiveTab }) {
 
   // --- DATA FILTERING & QUEUE LOGIC ---
   const ordersToVerify = useMemo(() =>
-    orders?.filter(o => String(o.status || "").toUpperCase() === 'AWAITING_VERIFICATION') || [],
+    orders?.filter(o => {
+      const status = String(o.status || "").toUpperCase();
+      // Ensure we catch both naming conventions
+      return status === 'AWAITING_VERIFICATION' || status === 'VERIFYING';
+    }) || [],
     [orders]);
 
   const activePickupQueue = useMemo(() =>
@@ -126,20 +130,26 @@ export default function AdminDashboard({ setActiveTab }) {
                 </div>
                 <div className="space-y-4">
                   <div className="bg-white border border-slate-200 p-4 rounded-2xl">
-                    <p className="text-[8px] font-black text-slate-400 uppercase mb-1 tracking-widest">Reference No.</p>
-                    {/* Render as link if it looks like a URL, otherwise text */}
+                    <p className="text-[8px] font-black text-slate-400 uppercase mb-1 tracking-widest">Verification Data</p>
+                    {/* Priority 1: Check for a clickable URL */}
                     {order.receipt_url?.startsWith('http') ? (
                       <a href={order.receipt_url} target="_blank" rel="noreferrer" className="text-xs font-mono font-bold text-blue-600 hover:underline truncate block">
                         View Attachment ↗
                       </a>
                     ) : (
-                      <span className="text-xs font-mono font-bold text-emerald-700 truncate block">
-                        {order.receipt_url || "N/A - MANUAL"}
+                      /* Priority 2: Display the manual Reference Number (receipt_url or reference_number) */
+                      <span className="text-xs font-mono font-bold text-emerald-700 break-all block">
+                        {order.receipt_url || order.reference_number || "NO REF PROVIDED"}
                       </span>
                     )}
                   </div>
                   <button
-                    onClick={() => updateOrderStatusBulk([order.id], 'READY')}
+                    onClick={() => {
+                      const confirmAction = window.confirm("Verify payment and move to pickup queue?");
+                      if (confirmAction) {
+                        updateOrderStatusBulk([order.id], 'READY');
+                      }
+                    }}
                     className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-emerald-950 transition-all shadow-sm"
                   >
                     Verify & Release

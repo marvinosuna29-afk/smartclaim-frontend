@@ -30,45 +30,54 @@ export default function OrderAnalytics({ orders = [] }) {
     return () => resizeObserver.disconnect();
   }, []);
 
-  const { chartData, todayCount } = useMemo(() => {
+  const { chartData, todayCount, avgWaitTime, peakDay } = useMemo(() => {
     const dailyCounts = {};
     const now = new Date();
+    let totalWait = 0;
+    let timedOrders = 0;
 
-    // 1. Initialize the last 7 days using LOCAL dates
+    // Initialize 7 days
     for (let i = 6; i >= 0; i--) {
       const d = new Date();
       d.setDate(now.getDate() - i);
-      // Use YYYY-MM-DD format based on local time, not UTC
-      const dateKey = d.toLocaleDateString('en-CA'); // 'en-CA' gives YYYY-MM-DD
-      dailyCounts[dateKey] = 0;
+      dailyCounts[d.toLocaleDateString('en-CA')] = 0;
     }
 
-    let countToday = 0;
     const todayStr = now.toLocaleDateString('en-CA');
+    let countToday = 0;
 
     (orders || []).forEach(o => {
-      const rawDate = o.created_at || o.date;
-      if (rawDate) {
-        // Convert order date to local YYYY-MM-DD
-        const dateObj = new Date(rawDate);
-        const dateKey = dateObj.toLocaleDateString('en-CA');
+      const dateObj = new Date(o.created_at || o.date);
+      const dateKey = dateObj.toLocaleDateString('en-CA');
 
-        if (dailyCounts.hasOwnProperty(dateKey)) {
-          dailyCounts[dateKey] += 1;
-        }
-        if (dateKey === todayStr) {
-          countToday++;
-        }
+      // 1. Volume Tracking
+      if (dailyCounts.hasOwnProperty(dateKey)) {
+        dailyCounts[dateKey] += 1;
+      }
+      if (dateKey === todayStr) countToday++;
+
+      // 2. Performance Tracking: Processing Speed
+      // Assuming your DB has created_at and a status_updated_at (or similar)
+      if (o.status === 'CLAIMED' && o.updated_at) {
+        const start = new Date(o.created_at).getTime();
+        const end = new Date(o.updated_at).getTime();
+        totalWait += (end - start);
+        timedOrders++;
       }
     });
 
+    const formattedData = Object.keys(dailyCounts).sort().map(key => ({
+      label: new Date(key).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+      count: dailyCounts[key]
+    }));
+
     return {
-      chartData: Object.keys(dailyCounts).sort().map(key => ({
-        // Formatting the label for the chart (e.g., "Apr 1")
-        label: new Date(key).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
-        count: dailyCounts[key]
-      })),
-      todayCount: countToday
+      chartData: formattedData,
+      todayCount: countToday,
+      // Metric: Avg minutes to process an order
+      avgWaitTime: timedOrders > 0 ? Math.round((totalWait / timedOrders) / 60000) : 0,
+      // Metric: Find the day with highest volume
+      peakDay: formattedData.reduce((prev, curr) => (prev.count > curr.count) ? prev : curr).label
     };
   }, [orders]);
 

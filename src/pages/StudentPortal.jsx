@@ -80,18 +80,15 @@ export default function StudentPortal({ needsVerification, activeTab, myOrders: 
   }, [myOrders]);
 
   useEffect(() => {
-    if (showQRModal) {
-      // Check if ANY of the orders currently in the QR modal have been claimed
-      const stillReady = readyOrders.length > 0;
-
-      // If the admin claimed the orders, readyOrders.length will become 0
-      // because our readyOrders memo filters out 'CLAIMED' status.
-      if (!stillReady) {
+    if (showQRModal && selectedOrderForQR) {
+      // Check if the specific order in the modal is still in the "READY" list
+      const isStillReady = readyOrders.some(o => String(o.id) === String(selectedOrderForQR.id));
+      if (!isStillReady) {
         setShowQRModal(false);
         setSelectedOrderForQR(null);
       }
     }
-  }, [readyOrders, showQRModal]); // Watch readyOrders specifically
+  }, [readyOrders, showQRModal, selectedOrderForQR]); // Watch readyOrders specifically
 
   if (needsVerification && user?.role?.toLowerCase() !== 'admin') {
     return (
@@ -139,11 +136,25 @@ export default function StudentPortal({ needsVerification, activeTab, myOrders: 
 
   const handleReferenceSubmit = async (orderId) => {
     const refNum = window.prompt("Enter your Payment Reference / Transaction Number:");
+
+    // 1. Validation: Ensure input isn't empty or just spaces
     if (!refNum || !refNum.trim()) return;
+
     setUploadingId(orderId);
     try {
-      const success = await submitReceipt(orderId, refNum.trim());
-      if (!success) alert("Submission failed. Check your connection.");
+      // 2. The Fix: Capture the full response object
+      const response = await submitReceipt(orderId, refNum.trim());
+
+      // 3. The Fix: Check for the success property specifically
+      if (response && response.success) {
+        // Optional: You could add a "Success" toast here
+      } else {
+        // Show the specific error message from the server if it exists
+        alert(response?.message || "Submission failed. Check your connection.");
+      }
+    } catch (err) {
+      console.error("Receipt Upload Error:", err);
+      alert("A critical error occurred during submission.");
     } finally {
       setUploadingId(null);
     }

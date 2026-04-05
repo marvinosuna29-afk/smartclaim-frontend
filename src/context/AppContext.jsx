@@ -12,15 +12,6 @@ export const AppProvider = ({ children }) => {
     try { return saved ? JSON.parse(saved) : null; } catch (e) { return null; }
   });
 
-  const readyOrders = useMemo(() => {
-    // We filter orders that belong to the logged-in user AND are status 'READY'
-    const currentId = String(user?.id || user?.user_id || "");
-    return orders.filter(o =>
-      String(o.user_id || o.userId) === currentId &&
-      String(o.status).toUpperCase() === 'READY'
-    );
-  }, [orders, user?.id]);
-
   const [users, setUsers] = useState([]);
   const [items, setItems] = useState([]);
   const [orders, setOrders] = useState([]);
@@ -29,6 +20,15 @@ export const AppProvider = ({ children }) => {
   const [loading, setLoading] = useState(false);
   const [privateAlert, setPrivateAlert] = useState(null);
   const [currentQueue, setCurrentQueue] = useState(0);
+
+  const readyOrders = useMemo(() => {
+    // We filter orders that belong to the logged-in user AND are status 'READY'
+    const currentId = String(user?.id || user?.user_id || "");
+    return orders.filter(o =>
+      String(o.user_id || o.userId) === currentId &&
+      String(o.status).toUpperCase() === 'READY'
+    );
+  }, [orders, user?.id]);
 
   useEffect(() => {
     // We only count orders that haven't been CLAIMED yet.

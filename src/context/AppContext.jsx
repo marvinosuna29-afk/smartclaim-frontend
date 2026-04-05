@@ -201,6 +201,19 @@ export const AppProvider = ({ children }) => {
       if (r.ok) { setItems(prev => prev.filter(item => item.id !== id)); return { success: true }; }
       return { success: false };
     },
+    updateItemStock: async (itemId, newStock) => {
+      const r = await api(`/api/items/${itemId}`, 'PATCH', {
+        stock: newStock,
+        adminId: stableUserId
+      });
+      if (r.ok) {
+        setItems(prev => prev.map(item =>
+          item.id === itemId ? { ...item, stock: newStock } : item
+        ));
+        return { success: true };
+      }
+      return { success: false, message: r.data?.message };
+    },
     toggleLowStock: async (itemId) => {
       const r = await api('/api/items/toggle-low-stock', 'PATCH', { itemId, adminId: stableUserId });
       if (r.ok) {

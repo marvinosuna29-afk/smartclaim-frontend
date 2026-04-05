@@ -1,4 +1,4 @@
-// Version 1.2.1 - Production Error #310 & Scope Fix
+// Version 1.2.2 - Production Error #310 & Scope Fix (Final)
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { io } from 'socket.io-client';
 
@@ -111,245 +111,199 @@ export const AppProvider = ({ children }) => {
     }
   }, [stableUserId, normalizeUser, api]);
 
-  // --- 4. ACTIONS (Memoized to prevent 'l is not a function') ---
-  const actions = useMemo(() => ({
-
-    refreshOrders: refreshData,
-    fetchOrders: refreshData,
-    syncStats: refreshData,
-
-    setUser: (userData) => {
-      if (userData) localStorage.setItem('app_user', JSON.stringify(userData));
-      else { localStorage.removeItem('app_user'); localStorage.removeItem('token'); }
-      setUserState(userData);
-    },
-    register: async (studentData) => {
-      const r = await api('/api/auth/register', 'POST', studentData);
-      if (r.ok) {
-        // Refresh the user list so the new student shows up in the directory immediately
-        const uRes = await api(`/api/admin/users?adminId=${stableUserId}`);
-        if (uRes.ok && Array.isArray(uRes.data)) {
-          setUsers(uRes.data.map(normalizeUser));
-        }
-        return { success: true };
-      }
-      return {
-        success: false,
-        message: r.data?.message || "Registration failed"
-      };
-    },
-    login: async (id, password) => {
-      const r = await api('/api/auth/login', 'POST', { id, password });
-      if (r.ok) {
-        localStorage.setItem('token', r.data.token);
-        const normalized = normalizeUser(r.data.user);
-        if (normalized) {
-          localStorage.setItem('app_user', JSON.stringify(normalized));
-          setUserState(normalized);
-        }
-        return { success: true };
-      }
-      return { success: false, message: r.data.message };
-    },
-    logout: () => {
-      localStorage.clear();
-      setUserState(null);
-      window.location.href = '/login';
-    },
-    requestOTP: async (targetEmail) => {
-      return await api('/api/auth/request-otp', 'POST', { email: targetEmail, userId: stableUserId });
-    },
-    unlinkDiscord: async () => {
-      const r = await api('/api/auth/discord/unlink', 'POST', { userId: stableUserId });
-      if (r.ok) {
-        // Refresh the local user state to reflect they are no longer verified
-        await refreshUser();
-        return { success: true };
-      }
-      return { success: false, message: r.data?.message || "Failed to unlink" };
-    },
-    verifyOTP: async (otp, payload = {}) => {
-      const r = await api('/api/auth/verify-otp', 'POST', { otp: String(otp).trim(), ...payload, userId: stableUserId });
-      if (r.ok) {
-        if (r.data?.user) {
-          const normalized = normalizeUser(r.data.user);
-          localStorage.setItem('app_user', JSON.stringify(normalized));
-          setUserState(normalized);
-        } else {
-          refreshData();
-        }
-        return { success: true };
-      }
-      return { success: false, message: r.data?.message || "Verification failed" };
-    },
-    promoteUser: async (targetId, nextRole) => {
-      const r = await api('/api/admin/users/promote', 'PATCH', { targetUserId: String(targetId), adminId: stableUserId, newRole: nextRole });
-      if (r.ok) {
-        setUsers(prev => prev.map(u => (u.id === targetId ? { ...u, role: nextRole } : u)));
-        return { success: true };
-      }
-      return { success: false };
-    },
-    deleteUser: async (targetUserId) => {
-      if (!window.confirm("Delete this user?")) return;
-      const r = await api(`/api/admin/users/${targetUserId}?adminId=${stableUserId}`, 'DELETE');
-      if (r.ok) { setUsers(prev => prev.filter(u => u.id !== targetUserId)); return { success: true }; }
-      return { success: false };
-    },
-    addItem: async (itemData) => {
-      const r = await api('/api/items', 'POST', { ...itemData, adminId: stableUserId });
-      if (r.ok) { setItems(prev => [...prev, (r.data.item || r.data)]); return { success: true }; }
-      return { success: false, message: r.data?.message };
-    },
-    deleteItem: async (id) => {
-      const r = await api(`/api/items/${id}?adminId=${stableUserId}`, 'DELETE');
-      if (r.ok) { setItems(prev => prev.filter(item => item.id !== id)); return { success: true }; }
-      return { success: false };
-    },
-    updateItemStock: async (itemId, size = 'default', delta = 0) => {
-      // 1. Change the URL to match the backend 'update-stock' route
+  // --- 4. ACTIONS ---
+  const actions = useMemo(() => {
+    // We define the stock logic as a local constant first to avoid circular reference crashes
+    const updateStockLogic = async (itemId, size = 'default', delta = 0) => {
       const r = await api('/api/items/update-stock', 'PATCH', {
-        itemId,        // Backend: const { itemId, size, delta, adminId } = req.body;
+        itemId,
         size,
         delta,
         adminId: stableUserId
       });
 
       if (r.ok) {
-        // 2. Update local state with the new sizes object the backend returns
         setItems(prev => prev.map(item =>
           String(item.id) === String(itemId) ? { ...item, sizes: r.data.sizes } : item
         ));
         return { success: true };
       }
       return { success: false, message: r.data?.message || "Stock update failed" };
-    },
+    };
 
-    // Keep the alias so your UI doesn't crash if it's looking for 'updateStock'
-    updateStock: async (itemId, size, delta) => {
-      return actions.updateItemStock(itemId, size, delta);
-    },
-    toggleLowStock: async (itemId) => {
-      const r = await api('/api/items/toggle-low-stock', 'PATCH', { itemId, adminId: stableUserId });
-      if (r.ok) {
-        setItems(prev => prev.map(item => item.id === itemId ? { ...item, is_low_stock: !item.is_low_stock } : item));
-        return { success: true };
-      }
-      return { success: false };
-    },
-    addOrder: async (orderData) => {
-      const r = await api('/api/orders', 'POST', { ...orderData, userId: stableUserId });
-      if (r.ok) {
-        let serverOrder = r.data.order || r.data;
+    return {
+      // Logic Aliases (Fixes production 'l is not a function' error)
+      refreshOrders: refreshData,
+      fetchOrders: refreshData,
+      syncStats: refreshData,
+      fetchStats: refreshData,
 
-        // Force the student ID into the local state object so the filter sees it
-        serverOrder = {
-          ...serverOrder,
-          user_id: serverOrder.user_id || stableUserId,
-          status: (serverOrder.status || 'PENDING').toUpperCase()
-        };
-
-        setOrders(prev => {
-          const exists = prev.some(o => String(o.id) === String(serverOrder.id));
-          return exists ? prev : [serverOrder, ...prev];
+      setUser: (userData) => {
+        if (userData) localStorage.setItem('app_user', JSON.stringify(userData));
+        else { localStorage.removeItem('app_user'); localStorage.removeItem('token'); }
+        setUserState(userData);
+      },
+      register: async (studentData) => {
+        const r = await api('/api/auth/register', 'POST', studentData);
+        if (r.ok) {
+          const uRes = await api(`/api/admin/users?adminId=${stableUserId}`);
+          if (uRes.ok && Array.isArray(uRes.data)) {
+            setUsers(uRes.data.map(normalizeUser));
+          }
+          return { success: true };
+        }
+        return { success: false, message: r.data?.message || "Registration failed" };
+      },
+      login: async (id, password) => {
+        const r = await api('/api/auth/login', 'POST', { id, password });
+        if (r.ok) {
+          localStorage.setItem('token', r.data.token);
+          const normalized = normalizeUser(r.data.user);
+          if (normalized) {
+            localStorage.setItem('app_user', JSON.stringify(normalized));
+            setUserState(normalized);
+          }
+          return { success: true };
+        }
+        return { success: false, message: r.data.message };
+      },
+      logout: () => {
+        localStorage.clear();
+        setUserState(null);
+        window.location.href = '/login';
+      },
+      requestOTP: async (targetEmail) => {
+        return await api('/api/auth/request-otp', 'POST', { email: targetEmail, userId: stableUserId });
+      },
+      unlinkDiscord: async () => {
+        const r = await api('/api/auth/discord/unlink', 'POST', { userId: stableUserId });
+        if (r.ok) { await refreshUser(); return { success: true }; }
+        return { success: false, message: r.data?.message || "Failed to unlink" };
+      },
+      verifyOTP: async (otp, payload = {}) => {
+        const r = await api('/api/auth/verify-otp', 'POST', { otp: String(otp).trim(), ...payload, userId: stableUserId });
+        if (r.ok) {
+          if (r.data?.user) {
+            const normalized = normalizeUser(r.data.user);
+            localStorage.setItem('app_user', JSON.stringify(normalized));
+            setUserState(normalized);
+          } else {
+            refreshData();
+          }
+          return { success: true };
+        }
+        return { success: false, message: r.data?.message || "Verification failed" };
+      },
+      promoteUser: async (targetId, nextRole) => {
+        const r = await api('/api/admin/users/promote', 'PATCH', { targetUserId: String(targetId), adminId: stableUserId, newRole: nextRole });
+        if (r.ok) {
+          setUsers(prev => prev.map(u => (u.id === targetId ? { ...u, role: nextRole } : u)));
+          return { success: true };
+        }
+        return { success: false };
+      },
+      deleteUser: async (targetUserId) => {
+        if (!window.confirm("Delete this user?")) return;
+        const r = await api(`/api/admin/users/${targetUserId}?adminId=${stableUserId}`, 'DELETE');
+        if (r.ok) { setUsers(prev => prev.filter(u => u.id !== targetUserId)); return { success: true }; }
+        return { success: false };
+      },
+      addItem: async (itemData) => {
+        const r = await api('/api/items', 'POST', { ...itemData, adminId: stableUserId });
+        if (r.ok) { setItems(prev => [...prev, (r.data.item || r.data)]); return { success: true }; }
+        return { success: false, message: r.data?.message };
+      },
+      deleteItem: async (id) => {
+        const r = await api(`/api/items/${id}?adminId=${stableUserId}`, 'DELETE');
+        if (r.ok) { setItems(prev => prev.filter(item => item.id !== id)); return { success: true }; }
+        return { success: false };
+      },
+      // Using the local constant to point both function names to the same logic
+      updateItemStock: updateStockLogic,
+      updateStock: updateStockLogic,
+      
+      toggleLowStock: async (itemId) => {
+        const r = await api('/api/items/toggle-low-stock', 'PATCH', { itemId, adminId: stableUserId });
+        if (r.ok) {
+          setItems(prev => prev.map(item => item.id === itemId ? { ...item, is_low_stock: !item.is_low_stock } : item));
+          return { success: true };
+        }
+        return { success: false };
+      },
+      addOrder: async (orderData) => {
+        const r = await api('/api/orders', 'POST', { ...orderData, userId: stableUserId });
+        if (r.ok) {
+          let sO = r.data.order || r.data;
+          sO = { ...sO, user_id: sO.user_id || stableUserId, status: (sO.status || 'PENDING').toUpperCase() };
+          setOrders(prev => prev.some(o => String(o.id) === String(sO.id)) ? prev : [sO, ...prev]);
+          return { success: true, orderId: sO.id };
+        }
+        return { success: false, message: r.data?.message || "Failed" };
+      },
+      submitReceipt: async (orderId, referenceNumber) => {
+        const res = await api('/api/orders/status-update', 'POST', {
+          ids: [orderId], status: 'AWAITING_VERIFICATION', receipt_url: referenceNumber, userId: stableUserId
         });
-
-        return { success: true, orderId: serverOrder.id };
-      }
-      return { success: false, message: r.data?.message || "Failed" };
-    },
-    submitReceipt: async (orderId, referenceNumber) => {
-      const res = await api('/api/orders/status-update', 'POST', { // Changed to POST
-        ids: [orderId],
-        status: 'AWAITING_VERIFICATION',
-        receipt_url: referenceNumber,
-        userId: stableUserId
-      });
-      if (res.ok) {
-        refreshData();
-        return { success: true };
-      }
-      return { success: false };
-    },
-    processScanClaim: async (orderIds, adminId) => {
-      const normalizedIds = Array.isArray(orderIds) ? orderIds.map(id => String(id)) : [String(orderIds)];
-      const res = await api('/api/orders/scan-claim', 'POST', { orderIds: normalizedIds, adminId });
-      if (res.ok) {
-        setOrders(prev => prev.map(o => normalizedIds.includes(String(o.id)) ? { ...o, status: 'CLAIMED' } : o));
-        setTimeout(() => refreshData(), 1000);
-        return { success: true };
-      }
-      return { success: false };
-    },
-    incrementQueue: async (adminId) => {
-      const r = await api('/api/queue/increment', 'POST', { adminId });
-      return r.ok ? { success: true, nextId: r.data.currentNumber } : { success: false };
-    },
-    updateOrderStatusBulk: async (ids, status) => {
-      const normalizedIds = Array.isArray(ids) ? ids.map(id => String(id)) : [String(ids)];
-      const upperStatus = status.toUpperCase();
-
-      // 🚩 CHANGE 'PATCH' TO 'POST' HERE
-      const r = await api('/api/orders/status-update', 'POST', {
-        ids: normalizedIds,
-        status: upperStatus,
-        adminId: stableUserId
-      });
-
-      if (r.ok) {
-        setOrders(prev => {
-          if (!Array.isArray(prev)) return [];
-          return prev.map(o => {
-            const match = normalizedIds.includes(String(o.id || o._id));
-            return match ? { ...o, status: upperStatus } : o;
-          });
+        if (res.ok) { refreshData(); return { success: true }; }
+        return { success: false };
+      },
+      processScanClaim: async (orderIds, adminId) => {
+        const normalizedIds = Array.isArray(orderIds) ? orderIds.map(id => String(id)) : [String(orderIds)];
+        const res = await api('/api/orders/scan-claim', 'POST', { orderIds: normalizedIds, adminId });
+        if (res.ok) {
+          setOrders(prev => prev.map(o => normalizedIds.includes(String(o.id)) ? { ...o, status: 'CLAIMED' } : o));
+          setTimeout(() => refreshData(), 1000);
+          return { success: true };
+        }
+        return { success: false };
+      },
+      incrementQueue: async (adminId) => {
+        const r = await api('/api/queue/increment', 'POST', { adminId });
+        return r.ok ? { success: true, nextId: r.data.currentNumber } : { success: false };
+      },
+      updateOrderStatusBulk: async (ids, status) => {
+        const normalizedIds = Array.isArray(ids) ? ids.map(id => String(id)) : [String(ids)];
+        const upperStatus = status.toUpperCase();
+        const r = await api('/api/orders/status-update', 'POST', {
+          ids: normalizedIds, status: upperStatus, adminId: stableUserId
         });
-
-        setTimeout(() => refreshData(), 500);
-        return { success: true };
+        if (r.ok) {
+          setOrders(prev => prev.map(o => normalizedIds.includes(String(o.id)) ? { ...o, status: upperStatus } : o));
+          setTimeout(() => refreshData(), 500);
+          return { success: true };
+        }
+        return { success: false, error: r.data?.message || "Server Error" };
+      },
+      printReceipt: (order) => {
+        if (!order) return;
+        window.print();
+      },
+      addAnnouncement: async (msg, expires_at) => {
+        const r = await api('/api/announcements', 'POST', { content: msg, type: 'info', expires_at, adminId: stableUserId });
+        return r.ok ? { success: true } : { success: false };
+      },
+      deleteAnnouncement: async (id) => {
+        const r = await api(`/api/announcements/${id}?adminId=${stableUserId}`, 'DELETE');
+        if (r.ok) setAnnouncements(prev => prev.filter(a => a.id !== id));
+        return { success: r.ok };
+      },
+      toggleOfficeStatus: async (nextStatus, password) => {
+        const r = await api('/api/admin/system-status', 'PATCH', { status: nextStatus, password, adminId: stableUserId });
+        if (r.ok) setOfficeStatus(nextStatus);
+        return { success: r.ok };
       }
-
-      return { success: false, error: r.data?.message || "Server Error" };
-    },
-    printReceipt: (order) => {
-      if (!order) return;
-      console.log("Preparing print for order:", order.id);
-      // Basic print command - you can expand this later
-      window.print();
-    },
-    addAnnouncement: async (msg, expires_at) => {
-      const r = await api('/api/announcements', 'POST', { content: msg, type: 'info', expires_at, adminId: stableUserId });
-      return r.ok ? { success: true } : { success: false };
-    },
-    deleteAnnouncement: async (id) => {
-      const r = await api(`/api/announcements/${id}?adminId=${stableUserId}`, 'DELETE');
-      if (r.ok) setAnnouncements(prev => prev.filter(a => a.id !== id));
-      return { success: r.ok };
-    },
-    toggleOfficeStatus: async (nextStatus, password) => {
-      const r = await api('/api/admin/system-status', 'PATCH', { status: nextStatus, password, adminId: stableUserId });
-      if (r.ok) setOfficeStatus(nextStatus);
-      return { success: r.ok };
-    }
-  }), [stableUserId, api, normalizeUser, refreshData]);
-
-
+    };
+  }, [stableUserId, api, normalizeUser, refreshData, refreshUser]);
 
   // --- 5. DERIVED STATE ---
   const currentQueue = useMemo(() => orders.filter(o => !['CLAIMED', 'CANCELLED'].includes(o.status?.toUpperCase())).length, [orders]);
   const myOrders = useMemo(() => {
     if (!stableUserId) return [];
-    return orders.filter(o =>
-      String(o.user_id || o.userId || o.studentId) === stableUserId
-    );
+    return orders.filter(o => String(o.user_id || o.userId || o.studentId) === stableUserId);
   }, [orders, stableUserId]);
   const readyOrders = useMemo(() => {
     if (!stableUserId) return [];
-    // ❌ PROBLEM: This ONLY shows orders if status is 'READY'
-    return orders.filter(o =>
-      String(o.user_id || o.userId) === stableUserId &&
-      o.status?.toUpperCase() === 'READY'
-    );
+    return orders.filter(o => String(o.user_id || o.userId) === stableUserId && o.status?.toUpperCase() === 'READY');
   }, [orders, stableUserId]);
 
   // --- 6. EFFECTS ---
@@ -365,11 +319,9 @@ export const AppProvider = ({ children }) => {
         return targets.includes(String(o.id)) ? { ...o, ...d, status: (d.status || o.status).toUpperCase() } : o;
       }));
     };
-
     socket.on('queue_updated', handleQueue);
     socket.on('order_updated', handleOrderUpdated);
     socket.on('office_status_updated', setOfficeStatus);
-
     return () => {
       socket.off('queue_updated');
       socket.off('order_updated');
@@ -385,7 +337,12 @@ export const AppProvider = ({ children }) => {
     <AppContext.Provider value={{
       user, users, items, orders, announcements, officeStatus, loading, privateAlert,
       currentQueue, readyOrders, refreshUser, currentServingId, myOrders,
-      refreshData, ...actions
+      refreshOrders: refreshData,
+      fetchOrders: refreshData,
+      fetchStats: refreshData,
+      syncStats: refreshData,
+      refreshData, 
+      ...actions
     }}>
       {children}
     </AppContext.Provider>

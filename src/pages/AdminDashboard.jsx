@@ -145,7 +145,8 @@ export default function AdminDashboard({ setActiveTab }) {
 
         {/* 🛡️ DATA-READY RENDER */}
         {orders && orders.length > 0 ? (
-          <div className="block animate-in fade-in slide-in-from-bottom-4 duration-1000">
+          <div className="block animate-in fade-in slide-in-from-bottom-4 duration-1000 min-h-[350px] w-full">
+            {/* 👆 Added min-h-[350px] and w-full */}
             <OrderAnalytics orders={orders} />
           </div>
         ) : (
@@ -205,7 +206,7 @@ export default function AdminDashboard({ setActiveTab }) {
                         }
                       }
                     }}
-                    className = "w-full py-4 bg-emerald-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-emerald-950 transition-all shadow-sm"
+                    className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-emerald-950 transition-all shadow-sm"
                   >
                     Verify & Release
                   </button>

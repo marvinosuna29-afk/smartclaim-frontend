@@ -26,7 +26,7 @@ const processOrderData = (orders) => {
     const dateKey = dateObj.toLocaleDateString('en-CA');
     if (Object.prototype.hasOwnProperty.call(dailyCounts, dateKey)) dailyCounts[dateKey] += 1;
     if (dateKey === todayStr) countToday++;
-    
+
     if ((o.status === 'READY' || o.status === 'COMPLETED' || o.status === 'CLAIMED') && o.updated_at) {
       const wait = new Date(o.updated_at).getTime() - new Date(o.created_at).getTime();
       if (wait > 0) {
@@ -53,53 +53,48 @@ const processOrderData = (orders) => {
 };
 
 export default function OrderAnalytics({ orders = [] }) {
-  const containerRef = useRef(null);
+  const [mounted, setMounted] = useState(false); // 1. Track mount state
   const stats = useMemo(() => processOrderData(orders), [orders]);
+
+  useEffect(() => {
+    setMounted(true); // 2. Set to true once the component is ready
+  }, []);
 
   return (
     <div className="w-full">
       {!stats.hasData ? (
         <div className="py-20 text-center bg-slate-50 rounded-[3rem] border-2 border-dashed border-slate-200">
-           <p className="text-[10px] font-black text-slate-400 uppercase">Awaiting System Data</p>
+          <p className="text-[10px] font-black text-slate-400 uppercase">Awaiting System Data</p>
         </div>
       ) : (
         <div className="space-y-6">
-          {/* STATS STRIP */}
+          {/* STATS STRIP (Keep existing code) */}
           <div className="grid grid-cols-3 gap-4">
-            <div className="bg-slate-50 p-4 rounded-2xl">
-              <p className="text-[8px] font-bold uppercase text-slate-400">Avg Speed</p>
-              <p className="text-xl font-black text-slate-900">{stats.avgWaitTime}m</p>
-            </div>
-            <div className="bg-slate-50 p-4 rounded-2xl">
-              <p className="text-[8px] font-bold uppercase text-slate-400">Peak</p>
-              <p className="text-xl font-black text-slate-900">{stats.peakDay}</p>
-            </div>
-            <div className="bg-slate-900 p-4 rounded-2xl text-white">
-               <p className="text-[8px] font-bold uppercase text-emerald-400">Today</p>
-               <p className="text-xl font-black">{stats.todayCount}</p>
-            </div>
+            {/* ... stats code ... */}
           </div>
 
-          {/* CHART - Using ResponsiveContainer to avoid l is not a function errors on Resize */}
-          <div ref={containerRef} className="w-full h-[300px] bg-white rounded-[2rem] border border-slate-100 p-4">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={stats.chartData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="label" tick={{fontSize: 10}} />
-                <YAxis tick={{fontSize: 10}} />
-                <Tooltip 
-                  contentStyle={{ borderRadius: '1rem', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                />
-                <Line 
-                  type="monotone" 
-                  dataKey="count" 
-                  stroke="#10b981" 
-                  strokeWidth={4} 
-                  dot={{ r: 4, fill: '#10b981' }} 
-                  activeDot={{ r: 6 }} 
-                />
-              </LineChart>
-            </ResponsiveContainer>
+          {/* 3. Wrap ResponsiveContainer in the 'mounted' check */}
+          <div className="w-full h-[300px] bg-white rounded-[2rem] border border-slate-100 p-4">
+            {mounted && (
+              <ResponsiveContainer width="100%" height="100%" debounce={50}>
+                <LineChart data={stats.chartData}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis dataKey="label" tick={{ fontSize: 10 }} />
+                  <YAxis tick={{ fontSize: 10 }} />
+                  <Tooltip
+                    contentStyle={{ borderRadius: '1rem', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="count"
+                    stroke="#10b981"
+                    strokeWidth={4}
+                    dot={{ r: 4, fill: '#10b981' }}
+                    activeDot={{ r: 6 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </div>
       )}

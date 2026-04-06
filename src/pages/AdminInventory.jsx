@@ -3,11 +3,11 @@ import { useApp } from '../context/AppContext';
 import {
   Package, Plus, Minus, Search, Trash2,
   Loader2, AlertTriangle, EyeOff, Eye,
-  Shirt, Bookmark, QrCode, Bell, BellOff
+  Shirt, Bookmark, QrCode, Bell, BellOff,
+  Camera, Image as ImageIcon // Added Camera and Image icon
 } from 'lucide-react';
 
 // --- SUB-COMPONENT: STOCK CARD ---
-// Memoized to prevent re-renders unless specific item data changes
 const StockCard = memo(({ item, size, isActuallyLow, toggleSizeVisibility, updateStock }) => {
   const isHidden = item.hidden_sizes?.includes(size);
   const count = item.sizes[size];
@@ -73,6 +73,22 @@ const AdminInventory = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isRegistering, setIsRegistering] = useState(false);
   const [useSizes, setUseSizes] = useState(true);
+  
+  // New States for Image Upload
+  const [imagePreview, setImagePreview] = useState(null);
+  const [base64Image, setBase64Image] = useState('');
+
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result);
+        setBase64Image(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const filteredItems = Array.isArray(items)
     ? items.filter(item => item.name?.toLowerCase().includes(searchTerm.toLowerCase()))
@@ -93,12 +109,14 @@ const AdminInventory = () => {
         sizes: defaultSizes,
         category: useSizes ? 'Apparel' : 'Accessory',
         description: '',
-        image_url: '',
+        image_url: base64Image, // Save the uploaded image
         is_scannable: true
       });
 
       if (result && result.success) {
         setNewItemName('');
+        setImagePreview(null);
+        setBase64Image('');
       } else {
         alert(`Registration failed: ${result?.error || 'Unknown Error'}`);
       }
@@ -133,8 +151,19 @@ const AdminInventory = () => {
       <section className="grid grid-cols-1 xl:grid-cols-12 gap-6">
         <div className="xl:col-span-8 bg-white p-6 md:p-8 rounded-[3rem] shadow-xl shadow-slate-200/40 border border-slate-100">
           <form onSubmit={handleRegister} className="space-y-6">
-            <div className="flex flex-col md:flex-row gap-3">
-              <div className="relative flex-1">
+            <div className="flex flex-col md:flex-row gap-4 items-center">
+              
+              {/* IMAGE UPLOAD PREVIEW */}
+              <label className="relative group w-20 h-20 bg-slate-50 border-2 border-dashed border-slate-200 rounded-3xl overflow-hidden flex items-center justify-center cursor-pointer hover:border-emerald-400 transition-all shrink-0">
+                {imagePreview ? (
+                  <img src={imagePreview} className="w-full h-full object-cover" alt="Preview" />
+                ) : (
+                  <Camera className="text-slate-300 group-hover:text-emerald-500 transition-colors" size={24} />
+                )}
+                <input type="file" className="hidden" accept="image/*" onChange={handleFileChange} />
+              </label>
+
+              <div className="relative flex-1 w-full">
                 <Package className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-300" size={20} />
                 <input
                   type="text"
@@ -147,7 +176,7 @@ const AdminInventory = () => {
               <button
                 type="submit"
                 disabled={isRegistering || !newItemName.trim()}
-                className="px-8 py-5 bg-emerald-950 text-white font-black rounded-3xl hover:bg-black transition-all text-[10px] uppercase tracking-widest shadow-lg shadow-emerald-950/20 disabled:opacity-50"
+                className="w-full md:w-auto px-8 py-5 bg-emerald-950 text-white font-black rounded-3xl hover:bg-black transition-all text-[10px] uppercase tracking-widest shadow-lg shadow-emerald-950/20 disabled:opacity-50"
               >
                 {isRegistering ? <Loader2 className="animate-spin mx-auto" size={20} /> : "Create Listing"}
               </button>
@@ -204,14 +233,25 @@ const AdminInventory = () => {
             >
               {/* Product Identity Column */}
               <div className="xl:w-64 flex-shrink-0 flex flex-col justify-between border-b xl:border-b-0 xl:border-r border-slate-100 pb-6 xl:pb-0 xl:pr-10">
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <div className={`w-2.5 h-2.5 rounded-full ${isActuallyLow ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`} />
-                    <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">SKU: {item.id}</span>
+                <div className="space-y-4">
+                  {/* PRODUCT IMAGE THUMBNAIL */}
+                  <div className="w-full aspect-square bg-slate-50 rounded-[2rem] overflow-hidden border border-slate-100 flex items-center justify-center shadow-inner">
+                    {item.image_url ? (
+                      <img src={item.image_url} className="w-full h-full object-cover" alt={item.name} />
+                    ) : (
+                      <ImageIcon className="text-slate-200" size={48} />
+                    )}
                   </div>
-                  <h3 className="text-3xl font-black text-slate-900 uppercase tracking-tighter leading-tight break-words">
-                    {item.name}
-                  </h3>
+                  
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-2.5 h-2.5 rounded-full ${isActuallyLow ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`} />
+                      <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">SKU: {item.id}</span>
+                    </div>
+                    <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tighter leading-tight break-words">
+                      {item.name}
+                    </h3>
+                  </div>
                 </div>
 
                 <div className="mt-6 flex flex-col gap-4">
@@ -237,10 +277,10 @@ const AdminInventory = () => {
               </div>
 
               {/* Grid of Sizes */}
-              <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+              <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 self-start">
                 {sizeKeys.map((size) => (
                   <StockCard 
-                    key={`${item.id}-${size}`} // 🛡️ Stability Fix: Composite Key
+                    key={`${item.id}-${size}`}
                     item={item}
                     size={size}
                     isActuallyLow={isActuallyLow}

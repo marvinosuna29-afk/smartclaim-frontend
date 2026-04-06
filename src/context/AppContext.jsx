@@ -228,6 +228,23 @@ export const AppProvider = ({ children }) => {
         if (r.ok) { setItems(prev => [...prev, (r.data.item || r.data)]); return { success: true }; }
         return { success: false, message: r.data?.message };
       },
+      updateItemImage: async (itemId, base64Image) => {
+        // Optimistic UI update
+        setItems(prev => prev.map(item =>
+          String(item.id) === String(itemId) ? { ...item, image_url: base64Image } : item
+        ));
+
+        const r = await api(`/api/items/${itemId}/image`, 'PUT', {
+          image_url: base64Image,
+          adminId: stableUserId
+        });
+
+        if (!r.ok) {
+          console.error("Image Sync Failed");
+          return { success: false };
+        }
+        return { success: true };
+      },
       deleteItem: async (id) => {
         const r = await api(`/api/items/${id}?adminId=${stableUserId}`, 'DELETE');
         if (r.ok) { setItems(prev => prev.filter(item => item.id !== id)); return { success: true }; }

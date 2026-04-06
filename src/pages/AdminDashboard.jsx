@@ -162,9 +162,9 @@ export default function AdminDashboard({ setActiveTab }) {
         </div>
       </div>
 
-      {/* 2. ANALYTICS & AUDIT LOG SECTION */}
+      {/* RESTORED HIGH-INFO ANALYTICS & AUDIT SECTION */}
       <section className="bg-white border border-slate-100 rounded-[3.5rem] p-8 md:p-10 shadow-sm relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full -mr-16 -mt-16 blur-3xl no-print" />
+        <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 rounded-full -mr-32 -mt-32 blur-3xl no-print" />
 
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4 relative z-10">
           <div>
@@ -172,76 +172,110 @@ export default function AdminDashboard({ setActiveTab }) {
               <div className="p-2 bg-emerald-100 text-emerald-600 rounded-xl shadow-sm">
                 <TrendingUp size={20} />
               </div>
-              System Audit & Analytics
+              System Audit Intelligence
             </h3>
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-2 no-print">
-              Real-time Performance & Order Volume
-            </p>
-            {/* PRINT ONLY HEADER */}
-            <p className="hidden print:block text-xs font-bold text-slate-500 mt-1">
-              Generated on: {new Date().toLocaleString()}
+              Detailed Inventory Throughput & Order Analytics
             </p>
           </div>
 
-          <button
-            onClick={() => window.print()}
-            className="no-print px-6 py-3 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-600 transition-all flex items-center gap-2"
-          >
-            <Send size={14} /> Generate Print Audit
-          </button>
+          <div className="flex gap-3 no-print">
+            <button
+              onClick={() => refreshData?.()}
+              className="p-3 bg-slate-50 text-slate-400 rounded-2xl hover:text-emerald-600 transition-all border border-slate-100"
+              title="Refresh Data"
+            >
+              <Loader2 size={18} className={processingId ? "animate-spin" : ""} />
+            </button>
+            <button
+              onClick={() => window.print()}
+              className="px-6 py-3 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-emerald-600 transition-all flex items-center gap-2 shadow-lg shadow-slate-200"
+            >
+              <Hash size={14} /> Export Audit Report
+            </button>
+          </div>
         </div>
 
-        {/* 📉 THE CHART (no-print) */}
-        <div className="w-full mb-12 no-print" style={{ minHeight: '350px', height: '350px' }}>
+        {/* 📈 THE CHART (Restored & Stabilized) */}
+        <div className="w-full mb-12 no-print" style={{ minHeight: '300px', height: '300px' }}>
           {orders && orders.length > 0 ? (
             <OrderAnalytics orders={orders} />
           ) : (
-            <div className="h-full flex flex-col items-center justify-center space-y-4 bg-slate-50/50 rounded-[2.5rem] border-2 border-dashed border-slate-100">
-              <Package className="text-slate-200" size={32} />
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Awaiting Data Feed</p>
+            <div className="h-full flex flex-col items-center justify-center bg-slate-50/50 rounded-[2.5rem] border-2 border-dashed border-slate-100">
+              <Package className="text-slate-200 mb-2" size={32} />
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Initializing Data Streams...</p>
             </div>
           )}
         </div>
 
-        {/* 📋 RESTORED AUDIT TABLE (Visible on Screen & Print) */}
+        {/* 📋 THE "INFORMATIVE" AUDIT TABLE (The core data you missed) */}
         <div className="relative z-10">
           <div className="flex items-center justify-between mb-6 no-print">
-            <h4 className="text-sm font-black uppercase tracking-widest text-slate-800">Order Quantity Breakdown</h4>
+            <h4 className="text-sm font-black uppercase tracking-widest text-slate-800 flex items-center gap-2">
+              <div className="w-1.5 h-4 bg-emerald-500 rounded-full" />
+              Live Order Distribution
+            </h4>
           </div>
 
-          <div className="overflow-hidden rounded-[2.5rem] border border-slate-100 bg-white">
+          <div className="overflow-x-auto no-scrollbar rounded-[2.5rem] border border-slate-100 bg-white">
             <table className="w-full text-left border-collapse">
-              <thead className="bg-slate-50/50">
-                <tr className="text-[10px] font-black uppercase text-slate-400 tracking-widest">
-                  <th className="px-8 py-5">Item Details</th>
-                  <th className="px-8 py-5 text-center">Total Requests</th>
-                  <th className="px-8 py-5 text-center">Fulfilled</th>
-                  <th className="px-8 py-5 text-right">Throughput</th>
+              <thead>
+                <tr className="bg-slate-50/50 text-[10px] font-black uppercase text-slate-400 tracking-widest">
+                  <th className="px-8 py-6">Product Item</th>
+                  <th className="px-8 py-6 text-center">In-Queue</th>
+                  <th className="px-8 py-6 text-center">Ready/Released</th>
+                  <th className="px-8 py-6 text-center">Total Volume</th>
+                  <th className="px-8 py-6 text-right">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {auditSummary.map((item) => (
-                  <tr key={item.id} className="group hover:bg-slate-50/50 transition-colors">
-                    <td className="px-8 py-5">
-                      <p className="font-black text-slate-900 text-sm uppercase">{item.name}</p>
-                      <p className="text-[10px] text-slate-400 font-bold tracking-tight">ID: {item.id}</p>
-                    </td>
-                    <td className="px-8 py-5 text-center font-bold text-slate-600">
-                      {item.orderCount}
-                    </td>
-                    <td className="px-8 py-5 text-center">
-                      <span className={`px-3 py-1 rounded-full text-[10px] font-black ${item.completedCount > 0 ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
-                        {item.completedCount}
-                      </span>
-                    </td>
-                    <td className="px-8 py-5 text-right font-mono font-bold text-slate-400">
-                      {item.orderCount > 0 ? Math.round((item.completedCount / item.orderCount) * 100) : 0}%
-                    </td>
-                  </tr>
-                ))}
+                {items.map((item) => {
+                  const itemOrders = orders.filter(o => o.item_name === item.name || o.item_id === item.id);
+                  const pendingCount = itemOrders.filter(o => ['AWAITING_VERIFICATION', 'VERIFYING'].includes(o.status?.toUpperCase())).length;
+                  const successCount = itemOrders.filter(o => ['READY', 'CLAIMED', 'COMPLETED'].includes(o.status?.toUpperCase())).length;
+
+                  return (
+                    <tr key={item.id} className="group hover:bg-slate-50/30 transition-colors">
+                      <td className="px-8 py-6">
+                        <div className="flex flex-col">
+                          <span className="font-black text-slate-900 text-sm uppercase group-hover:text-emerald-600 transition-colors">{item.name}</span>
+                          <span className="text-[9px] font-bold text-slate-300 uppercase tracking-tighter">Inventory Ref: {item.id}</span>
+                        </div>
+                      </td>
+                      <td className="px-8 py-6 text-center">
+                        <span className={`font-mono font-bold ${pendingCount > 0 ? 'text-amber-500' : 'text-slate-300'}`}>
+                          {pendingCount}
+                        </span>
+                      </td>
+                      <td className="px-8 py-6 text-center">
+                        <span className="font-mono font-bold text-emerald-500">
+                          {successCount}
+                        </span>
+                      </td>
+                      <td className="px-8 py-6 text-center">
+                        <div className="inline-flex items-center gap-2 bg-slate-100 px-3 py-1 rounded-full">
+                          <span className="text-xs font-black text-slate-600">{itemOrders.length}</span>
+                        </div>
+                      </td>
+                      <td className="px-8 py-6 text-right">
+                        {item.is_low_stock == 1 ? (
+                          <span className="text-[9px] font-black bg-red-100 text-red-600 px-2 py-1 rounded-md uppercase tracking-tighter italic">Low Stock</span>
+                        ) : (
+                          <span className="text-[9px] font-black bg-emerald-100 text-emerald-600 px-2 py-1 rounded-md uppercase tracking-tighter">Healthy</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
+        </div>
+
+        {/* PRINT-ONLY AUDIT FOOTER */}
+        <div className="hidden print:flex justify-between items-center mt-12 pt-8 border-t-2 border-slate-900">
+          <div className="text-[10px] font-black uppercase text-slate-400">SmartClaim Internal Audit Log</div>
+          <div className="text-[10px] font-black uppercase text-slate-900">End of Report</div>
         </div>
       </section>
 

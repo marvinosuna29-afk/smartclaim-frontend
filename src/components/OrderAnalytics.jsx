@@ -17,6 +17,7 @@ const processOrderData = (orders) => {
   const dailyCounts = {};
   const now = new Date();
 
+  // 1. Initialize Last 7 Days
   for (let i = 6; i >= 0; i--) {
     const d = new Date();
     d.setDate(now.getDate() - i);
@@ -25,9 +26,19 @@ const processOrderData = (orders) => {
   }
 
   safeOrders.forEach(o => {
-    const dateSrc = o.created_at || o.date || o.chartDate;
-    if (!dateSrc) return;
-    const orderDateKey = dateSrc.split('T')[0];
+    const dateValue = o.created_at || o.date || o.chartDate;
+    if (!dateValue) return;
+
+    // 🛠️ ROBUST DATE PARSING: Handles MySQL " " and ISO "T"
+    let orderDateKey;
+    if (typeof dateValue === 'string') {
+      orderDateKey = dateValue.includes('T')
+        ? dateValue.split('T')[0]
+        : dateValue.split(' ')[0];
+    } else {
+      orderDateKey = new Date(dateValue).toISOString().split('T')[0];
+    }
+
     if (Object.prototype.hasOwnProperty.call(dailyCounts, orderDateKey)) {
       dailyCounts[orderDateKey] += 1;
     }
@@ -41,7 +52,7 @@ const processOrderData = (orders) => {
 
   return {
     chartData: formattedData,
-    hasData: safeOrders.length > 0
+    hasData: true // Force true so we don't flicker back to "Awaiting Feed"
   };
 };
 
@@ -71,7 +82,7 @@ export default function OrderAnalytics({ orders = [] }) {
         style={{ height: '400px', width: '100%' }}
       >
         {isMounted && stats.chartData.length > 0 && (
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer minWidth={0} width="100%" height="100%">
             <LineChart
               data={stats.chartData}
               margin={{ top: 20, right: 30, left: 0, bottom: 20 }}
@@ -99,7 +110,7 @@ export default function OrderAnalytics({ orders = [] }) {
                 stroke="#10b981"
                 strokeWidth={5}
                 dot={{ r: 6, fill: '#10b981', strokeWidth: 3, stroke: '#fff' }}
-                isAnimationActive={true}
+                isAnimationActive={false}
               />
             </LineChart>
           </ResponsiveContainer>

@@ -26,10 +26,9 @@
 }
 
 /* --- RECHARTS STABILITY FIX --- */
-/* This kills the "Width -1 / Height -1" error by forcing a minimum render area */
 .recharts-wrapper {
   min-width: 0 !important;
-  min-height: 250px !important; /* Standard minimum for dashboard charts */
+  min-height: 250px !important;
   width: 100% !important;
 }
 
@@ -69,90 +68,96 @@
   }
 }
 
-/* --- PROFESSIONAL PRINT SYSTEM (A4 / OFFICE PRINTERS) --- */
-/* --- PROFESSIONAL PRINT SYSTEM (A4 / OFFICE PRINTERS) --- */
+/* --- PROFESSIONAL PRINT SYSTEM --- */
 @media print {
-  /* 1. SELECTIVE PURGE: Hide UI chrome, but KEEP the content container */
-  nav, 
-  button, 
-  .no-print,
-  .sidebar, 
-  .live-feed-banner,
-  aside,
-  header {
+  /* 1. SELECTIVE PURGE */
+  nav, button, .no-print, .sidebar, .live-feed-banner, aside, header {
     display: none !important;
   }
 
-  /* 2. RESET BODY & ROOT for Print Layout */
+  /* 2. RESET BODY & ROOT */
   body, html {
     background: white !important;
     margin: 0 !important;
     padding: 0 !important;
     width: 100% !important;
-    height: auto !important;
+    height: auto !important; /* Forces body to grow with content */
+    overflow: visible !important; /* Critical for multi-page prints */
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
 
-  /* Ensure the React Root stays visible but removes constraints */
   #root {
     display: block !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
   }
 
-  /* 3. AUDIT REPORT STYLING */
-  /* This targets the <section> in your AdminDashboard */
+  /* 3. SCROLL KILLER (The Fix for the 2-page cut-off) */
+  /* This targets any container that scrolls on screen and forces it open for print */
+  .scroll-pane, 
+  .overflow-y-auto, 
+  [class*="h-["], 
+  [style*="height"] {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    position: relative !important;
+  }
+
+  /* 4. AUDIT REPORT STYLING */
   section {
     border: none !important;
     box-shadow: none !important;
     margin: 0 !important;
-    padding: 1cm !important;
+    padding: 0 !important; /* Reduced padding for paper efficiency */
     width: 100% !important;
-    page-break-after: always;
+    display: block !important;
   }
 
-  /* Force the Table to be high-contrast and full width */
   table {
     width: 100% !important;
     border-collapse: collapse !important;
     border: 1px solid #e2e8f0 !important;
+    page-break-inside: auto; /* Allows table to split across pages naturally */
+  }
+
+  tr {
+    page-break-inside: avoid; /* Prevents a single row from splitting */
+    page-break-after: auto;
   }
 
   th {
     background-color: #f8fafc !important;
-    color: #0f172a !important;
-    border-bottom: 2px solid #0f172a !important;
+    color: #000 !important;
+    border-bottom: 2px solid #000 !important;
     font-weight: 800 !important;
-    text-transform: uppercase !important;
-    padding: 12px !important;
+    padding: 8px !important;
   }
 
   td {
-    border-bottom: 1px solid #f1f5f9 !important;
-    padding: 12px !important;
+    border-bottom: 1px solid #e2e8f0 !important;
+    padding: 8px !important;
     color: #000 !important;
+    font-size: 10pt !important;
   }
 
-  /* Keep the Chart visible if needed, or hide it to save toner */
+  /* 5. CHART ADJUSTMENT */
   .recharts-wrapper {
-    margin: 20px auto !important;
-    page-break-inside: avoid !important;
+    margin: 10px auto !important;
+    page-break-inside: avoid !important; /* Keeps the chart on one page */
+    height: 300px !important; /* Fixed height for consistent printing */
   }
 
-  /* Branding for the printed page */
   h3 {
-    color: #0f172a !important;
-    font-size: 24pt !important;
-    margin-bottom: 0.5cm !important;
+    color: #000 !important;
+    font-size: 20pt !important;
+    margin-top: 1cm !important;
     border-bottom: 2px solid #10b981 !important;
-    display: inline-block !important;
   }
 
-  /* 4. PAGE SETUP */
   @page {
     size: A4 portrait;
-    margin: 1.5cm;
+    margin: 1cm;
   }
 }

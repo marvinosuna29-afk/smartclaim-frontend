@@ -20,14 +20,12 @@ export default function AdminDashboard({ setActiveTab }) {
 
   const [processingId, setProcessingId] = useState(null);
 
-  // 1. Initial & Heartbeat Sync
   useEffect(() => {
     refreshData?.();
     const hb = setInterval(() => refreshData?.(), 30000);
     return () => clearInterval(hb);
   }, [refreshData]);
 
-  // 2. DATA NORMALIZATION
   const normalizedOrders = useMemo(() => {
     return orders.map(o => {
       const rawDate = o.created_at || o.date || o.chartDate || new Date().toISOString();
@@ -43,7 +41,6 @@ export default function AdminDashboard({ setActiveTab }) {
 
   const currentStatus = officeStatus || 'OPEN';
 
-  // --- STATS LOGIC ---
   const ordersToVerify = useMemo(() =>
     normalizedOrders.filter(o => ['AWAITING_VERIFICATION', 'VERIFYING'].includes(o.status)),
     [normalizedOrders]);
@@ -85,109 +82,99 @@ export default function AdminDashboard({ setActiveTab }) {
   };
 
   return (
-    <div className="space-y-10 pb-12 text-left animate-in fade-in duration-700">
+    <div className="space-y-6 md:space-y-10 pb-12 text-left animate-in fade-in duration-700 px-2 md:px-0">
 
-      {/* LOADING OVERLAY */}
       {loading && (
         <div className="fixed top-4 right-4 z-50 bg-white/80 backdrop-blur p-4 rounded-3xl shadow-xl border border-slate-100 flex items-center gap-3 no-print">
           <Loader2 className="animate-spin text-emerald-500" size={18} />
-          <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">Syncing Aiven...</span>
+          <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">Syncing...</span>
         </div>
       )}
 
-      {/* HEADER SECTION */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch no-print">
-        <div className="lg:col-span-8 bg-slate-950 p-8 md:p-12 rounded-[3.5rem] text-white shadow-2xl flex flex-col xl:flex-row items-center justify-between gap-8 relative overflow-hidden">
+      {/* HEADER SECTION - RESPONSIVE TWEAKS */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 md:gap-6 items-stretch no-print">
+        <div className="lg:col-span-8 bg-slate-950 p-6 md:p-12 rounded-[2.5rem] md:rounded-[3.5rem] text-white shadow-2xl flex flex-col xl:flex-row items-center justify-between gap-6 md:gap-8 relative overflow-hidden text-center md:text-left">
           <div className="relative z-10">
-            <div className="flex items-center gap-3 mb-4">
+            <div className="flex items-center justify-center md:justify-start gap-3 mb-2 md:mb-4">
               <div className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
-              <span className="text-[10px] font-black uppercase tracking-[0.4em] text-emerald-400">Inventory Intelligence</span>
+              <span className="text-[8px] md:text-[10px] font-black uppercase tracking-[0.4em] text-emerald-400">Inventory Intelligence</span>
             </div>
-            <h2 className="text-5xl font-black uppercase tracking-tighter leading-tight">
-              Ready <br /><span className="text-emerald-500">Pickups</span>
+            <h2 className="text-3xl md:text-5xl font-black uppercase tracking-tighter leading-tight">
+              Ready <br className="hidden md:block" /><span className="text-emerald-500">Pickups</span>
             </h2>
           </div>
-          <div className="bg-white/5 border border-white/10 p-10 rounded-[4rem] text-center min-w-[220px] z-10">
-            <span className="text-8xl xl:text-9xl font-black tracking-tighter text-white">
+          <div className="bg-white/5 border border-white/10 p-6 md:p-10 rounded-[2.5rem] md:rounded-[4rem] text-center min-w-[140px] md:min-w-[220px] z-10">
+            <span className="text-6xl md:text-9xl font-black tracking-tighter text-white">
               {String(activePickupQueue.length).padStart(3, '0')}
             </span>
           </div>
         </div>
 
-        <div className={`lg:col-span-4 p-8 rounded-[3.5rem] border-2 transition-all flex flex-col justify-between ${currentStatus === 'OPEN' ? 'bg-white border-emerald-100' : 'bg-red-50 border-red-200'}`}>
-          <div className="flex justify-between items-start">
-            <div className={`p-4 rounded-2xl ${currentStatus === 'OPEN' ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}`}>
-              <Power size={28} />
+        <div className={`lg:col-span-4 p-6 md:p-8 rounded-[2.5rem] md:rounded-[3.5rem] border-2 transition-all flex flex-row lg:flex-col justify-between items-center lg:items-start ${currentStatus === 'OPEN' ? 'bg-white border-emerald-100' : 'bg-red-50 border-red-200'}`}>
+          <div className="flex flex-col lg:flex-row lg:justify-between lg:w-full lg:items-start items-center">
+            <div className={`p-3 md:p-4 rounded-xl md:rounded-2xl mb-0 lg:mb-4 ${currentStatus === 'OPEN' ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}`}>
+              <Power size={24} md:size={28} />
             </div>
-            <button onClick={() => toggleOfficeStatus(currentStatus === 'OPEN' ? 'CLOSED' : 'OPEN')} className={`px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest ${currentStatus === 'OPEN' ? 'bg-emerald-900 text-white' : 'bg-red-600 text-white'}`}>
+            <button onClick={() => toggleOfficeStatus(currentStatus === 'OPEN' ? 'CLOSED' : 'OPEN')} className={`px-4 py-2 rounded-full text-[8px] md:text-[10px] font-black uppercase tracking-widest ${currentStatus === 'OPEN' ? 'bg-emerald-900 text-white' : 'bg-red-600 text-white'}`}>
               {currentStatus}
             </button>
           </div>
-          <div className="mt-6">
-            <h4 className="text-[10px] font-black uppercase text-slate-800 tracking-widest">Office Control</h4>
-            <p className="text-[11px] font-bold text-slate-400 mt-1 uppercase">Gatekeeper Status</p>
+          <div className="text-right lg:text-left">
+            <h4 className="text-[8px] md:text-[10px] font-black uppercase text-slate-800 tracking-widest">Office Control</h4>
+            <p className="text-[9px] md:text-[11px] font-bold text-slate-400 uppercase">Gatekeeper</p>
           </div>
         </div>
       </div>
 
-      {/* ANALYTICS & AUDIT */}
-      <section className="bg-white border border-slate-100 rounded-[3.5rem] p-8 md:p-10 shadow-sm relative print:border-none print:shadow-none print:p-0">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4">
+      {/* ANALYTICS - SCROLLABLE TABLE ON MOBILE */}
+      <section className="bg-white border border-slate-100 rounded-[2.5rem] md:rounded-[3.5rem] p-6 md:p-10 shadow-sm relative no-print">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 md:mb-10 gap-4">
           <div>
-            <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tighter flex items-center gap-2">
-              <TrendingUp className="text-emerald-500" /> System Audit Log
+            <h3 className="text-xl md:text-2xl font-black text-slate-900 uppercase tracking-tighter flex items-center gap-2">
+              <TrendingUp className="text-emerald-500" size={20} /> System Audit Log
             </h3>
-            <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase no-print">Real-time throughput data</p>
           </div>
-          <button onClick={() => window.print()} className="no-print px-6 py-3 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-emerald-600 transition-all flex items-center gap-2">
+          <button onClick={() => window.print()} className="w-full md:w-auto px-6 py-3 bg-slate-900 text-white rounded-2xl font-black text-[9px] md:text-[10px] uppercase tracking-widest hover:bg-emerald-600 transition-all flex items-center justify-center gap-2">
             <Hash size={14} /> Generate Report
           </button>
         </div>
 
-        {/* CHART AREA */}
-        <div
-          className="w-full mb-12 bg-slate-50 rounded-[2.5rem] p-6 border border-slate-100 relative print:bg-white print:border-none"
-          style={{ height: '450px', minHeight: '450px' }}
-        >
-          {normalizedOrders && normalizedOrders.length > 0 ? (
+        <div className="w-full mb-8 md:mb-12 bg-slate-50 rounded-[1.5rem] md:rounded-[2.5rem] p-4 md:p-6 border border-slate-100 relative h-[300px] md:h-[450px]">
+          {normalizedOrders.length > 0 ? (
             <OrderAnalytics orders={normalizedOrders} />
           ) : (
             <div className="h-full flex flex-col items-center justify-center text-slate-300">
-              <Database size={48} className="mb-4 opacity-20" />
-              <p className="text-[10px] font-black uppercase tracking-widest">Awaiting Database Feed...</p>
+              <Database size={32} className="mb-4 opacity-20" />
+              <p className="text-[8px] font-black uppercase tracking-widest">Awaiting Feed...</p>
             </div>
           )}
         </div>
 
-        {/* AUDIT TABLE - Fixed for Printing */}
-        <div className="overflow-x-auto rounded-[2.5rem] border border-slate-100 print:overflow-visible print:h-auto print:border-none">
-          <table className="w-full text-left border-collapse">
+        <div className="overflow-x-auto rounded-[1.5rem] md:rounded-[2.5rem] border border-slate-100 no-scrollbar">
+          <table className="w-full text-left border-collapse min-w-[600px]">
             <thead>
-              <tr className="bg-slate-50 text-[10px] font-black uppercase text-slate-400 tracking-widest print:bg-white print:text-black">
-                <th className="px-8 py-5">Asset Name</th>
-                <th className="px-8 py-5 text-center">In Verification</th>
-                <th className="px-8 py-5 text-center">Fulfilled</th>
-                <th className="px-8 py-5 text-center">Total Requests</th>
-                <th className="px-8 py-5 text-right">Status</th>
+              <tr className="bg-slate-50 text-[9px] md:text-[10px] font-black uppercase text-slate-400 tracking-widest">
+                <th className="px-4 md:px-8 py-4 md:py-5">Asset</th>
+                <th className="px-4 md:px-8 py-4 md:py-5 text-center">Verify</th>
+                <th className="px-4 md:px-8 py-4 md:py-5 text-center">Done</th>
+                <th className="px-4 md:px-8 py-4 md:py-5 text-center">Total</th>
+                <th className="px-4 md:px-8 py-4 md:py-5 text-right">Status</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-50 print:divide-slate-200">
+            <tbody className="divide-y divide-slate-50">
               {items.map((item) => {
-                const itemOrders = normalizedOrders.filter(o =>
-                  o.itemName === item.name || String(o.item_id) === String(item.id)
-                );
+                const itemOrders = normalizedOrders.filter(o => o.itemName === item.name || String(o.item_id) === String(item.id));
                 const pending = itemOrders.filter(o => ['AWAITING_VERIFICATION', 'VERIFYING'].includes(o.status)).length;
                 const done = itemOrders.filter(o => ['READY', 'CLAIMED', 'COMPLETED'].includes(o.status)).length;
-
                 return (
-                  <tr key={item.id} className="hover:bg-slate-50/50 transition-colors print:page-break-inside-avoid">
-                    <td className="px-8 py-5 font-black text-slate-900 uppercase text-xs">{item.name}</td>
-                    <td className="px-8 py-5 text-center font-bold text-amber-500">{pending}</td>
-                    <td className="px-8 py-5 text-center font-bold text-emerald-500">{done}</td>
-                    <td className="px-8 py-5 text-center font-bold text-slate-400">{itemOrders.length}</td>
-                    <td className="px-8 py-5 text-right">
-                      <span className={`text-[9px] font-black px-3 py-1 rounded-full ${item.is_low_stock == 1 ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-600'}`}>
-                        {item.is_low_stock == 1 ? 'CRITICAL' : 'OPTIMAL'}
+                  <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
+                    <td className="px-4 md:px-8 py-4 font-black text-slate-900 uppercase text-[10px] md:text-xs">{item.name}</td>
+                    <td className="px-4 md:px-8 py-4 text-center font-bold text-amber-500">{pending}</td>
+                    <td className="px-4 md:px-8 py-4 text-center font-bold text-emerald-500">{done}</td>
+                    <td className="px-4 md:px-8 py-4 text-center font-bold text-slate-400">{itemOrders.length}</td>
+                    <td className="px-4 md:px-8 py-4 text-right">
+                      <span className={`text-[8px] font-black px-2 py-1 rounded-full ${item.is_low_stock == 1 ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-600'}`}>
+                        {item.is_low_stock == 1 ? 'LOW' : 'OK'}
                       </span>
                     </td>
                   </tr>
@@ -198,64 +185,16 @@ export default function AdminDashboard({ setActiveTab }) {
         </div>
       </section>
 
-      {/* VERIFICATION QUEUE */}
-      <section className="no-print bg-white border border-slate-100 rounded-[3.5rem] p-8 md:p-10 shadow-sm">
-        <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tighter mb-8 flex items-center gap-2">
-          <AlertTriangle className="text-amber-500" /> Pending Approval
-        </h3>
-        {ordersToVerify.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-            {ordersToVerify.map(order => (
-              <div key={order.id} className="bg-slate-50 p-6 rounded-[2.5rem] border border-slate-100 group hover:border-emerald-300 transition-all">
-                <div className="flex justify-between items-start mb-6">
-                  <div>
-                    <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-1">Order Ref</p>
-                    <p className="font-black text-slate-900 uppercase text-sm">#{order.id}</p>
-                  </div>
-                  <div className="bg-white p-3 rounded-2xl shadow-sm border border-slate-100">
-                    <Package size={18} className="text-slate-400" />
-                  </div>
-                </div>
-
-                <div className="space-y-3 mb-6">
-                  <div className="flex justify-between text-[10px] font-bold">
-                    <span className="text-slate-400 uppercase">Item:</span>
-                    <span className="text-slate-900 uppercase">{order.itemName}</span>
-                  </div>
-                  <div className="bg-white p-4 rounded-2xl border border-slate-200">
-                    <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Receipt/Ref</p>
-                    <p className="text-xs font-mono font-bold text-indigo-600 truncate">{order.receipt_url || "NO_DATA_SYNCED"}</p>
-                  </div>
-                </div>
-
-                <button
-                  disabled={processingId === order.id}
-                  onClick={() => handleVerify(order)}
-                  className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-emerald-600 transition-all flex items-center justify-center gap-2"
-                >
-                  {processingId === order.id ? <Loader2 className="animate-spin" size={14} /> : <Send size={14} />}
-                  Verify & Notify
-                </button>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="py-20 text-center bg-slate-50 rounded-[3rem] border-2 border-dashed border-slate-200">
-            <CheckCircle className="mx-auto text-emerald-300 mb-2" size={48} />
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Queue Fully Verified</p>
-          </div>
-        )}
-      </section>
-
-      {/* STATS TILES */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 no-print">
+      {/* STATS CARDS - 2x2 GRID ON MOBILE */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 no-print">
         {statsCards.map((stat, i) => (
-          <button key={i} onClick={() => setActiveTab(stat.tab)} className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm hover:shadow-xl transition-all text-left group">
-            <div className={`${stat.color} p-4 rounded-2xl text-white w-fit mb-6 shadow-lg group-hover:scale-110 transition-transform`}>
-              <stat.icon size={24} />
+          <button key={i} onClick={() => setActiveTab(stat.tab)}
+            className="bg-white p-4 md:p-8 rounded-[1.5rem] md:rounded-[3rem] border border-slate-100 shadow-sm transition-all text-left active:scale-95 group">
+            <div className={`${stat.color} p-2.5 md:p-4 rounded-xl md:rounded-2xl text-white w-fit mb-2 md:mb-6 shadow-lg`}>
+              <stat.icon size={18} className="md:w-6 md:h-6" />
             </div>
-            <p className="text-slate-400 font-black text-[10px] uppercase tracking-widest mb-1">{stat.label}</p>
-            <h2 className="text-4xl font-black text-slate-900 tracking-tighter">{stat.value}</h2>
+            <p className="text-slate-400 font-black text-[7px] md:text-[10px] uppercase tracking-widest mb-0.5 md:mb-1">{stat.label}</p>
+            <h2 className="text-xl md:text-4xl font-black text-slate-900 tracking-tighter">{stat.value}</h2>
           </button>
         ))}
       </div>

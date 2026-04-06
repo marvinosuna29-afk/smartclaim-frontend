@@ -143,20 +143,21 @@ export default function AdminDashboard({ setActiveTab }) {
           </div>
         </div>
 
-        {/* 🛡️ DATA-READY RENDER */}
-        {orders && orders.length > 0 ? (
-          <div className="block animate-in fade-in slide-in-from-bottom-4 duration-1000 min-h-[350px] w-full">
-            {/* 👆 Added min-h-[350px] and w-full */}
-            <OrderAnalytics orders={orders} />
-          </div>
-        ) : (
-          <div className="py-24 text-center space-y-4 bg-slate-50/50 rounded-[2.5rem] border-2 border-dashed border-slate-100">
-            <div className="mx-auto w-12 h-12 bg-white rounded-2xl shadow-sm flex items-center justify-center text-slate-200">
-              <Package size={24} />
+        {/* 🛡️ DATA-READY RENDER - FIXED WRAPPER */}
+        <div className="w-full" style={{ minHeight: '350px' }}> {/* 👈 Force height here too */}
+          {orders && orders.length > 0 ? (
+            <div className="block animate-in fade-in slide-in-from-bottom-4 delay-300 duration-1000">
+              <OrderAnalytics orders={orders} />
             </div>
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Awaiting Data Feed</p>
-          </div>
-        )}
+          ) : (
+            <div className="py-24 text-center space-y-4 bg-slate-50/50 rounded-[2.5rem] border-2 border-dashed border-slate-100">
+              <div className="mx-auto w-12 h-12 bg-white rounded-2xl shadow-sm flex items-center justify-center text-slate-200">
+                <Package size={24} />
+              </div>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Awaiting Data Feed</p>
+            </div>
+          )}
+        </div>
       </section>
 
       {/* VERIFICATION QUEUE */}

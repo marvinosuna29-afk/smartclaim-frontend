@@ -17,7 +17,7 @@ export default function AdminOrders({ isStudentView = false }) {
   const { orders, printReceipt, user, api } = useApp();
   const [searchTerm, setSearchTerm] = useState("");
   const [dbStats, setDbStats] = useState({ totalCompleted: 0, todayCompleted: 0 });
-  
+
   // 🔄 Local State for UI Feedback
   const [syncingId, setSyncingId] = useState(null);
   const [lastSyncedId, setLastSyncedId] = useState(null);
@@ -55,7 +55,7 @@ export default function AdminOrders({ isStudentView = false }) {
       const currentUserId = String(o.userId || o.user_id || "");
       const currentItemName = String(o.itemName || o.item_name || o.name || "Unknown Item");
       const currentFullName = String(o.full_name || o.fullName || "Guest Student");
-      
+
       const finishedStatuses = ['CLAIMED', 'RELEASED', 'COMPLETED', 'DELIVERED'];
       const isFinished = finishedStatuses.includes(status);
 
@@ -73,22 +73,24 @@ export default function AdminOrders({ isStudentView = false }) {
   }, [orders, searchTerm, user?.id, isStudentView]);
 
   // 3. STATS CALCULATIONS
-  const displayTotal = useMemo(() =>
-    dbStats.totalCompleted || historyOrders.filter(o =>
-      ['CLAIMED', 'COMPLETED'].includes(String(o.status).toUpperCase())
-    ).length,
-    [dbStats.totalCompleted, historyOrders]
-  );
+  const displayTotal = useMemo(() => {
+    // If the DB explicitly says 0, show 0. Don't fallback to local count unless DB is null.
+    if (typeof dbStats.totalCompleted === 'number') return dbStats.totalCompleted;
+
+    return historyOrders.filter(o =>
+      ['CLAIMED', 'COMPLETED', 'RELEASED'].includes(String(o.status).toUpperCase())
+    ).length;
+  }, [dbStats.totalCompleted, historyOrders]);
 
   // 4. DISCORD SYNC HANDLER (With UI Guards)
   const handleDiscordSync = async (order) => {
     if (syncingId) return; // Prevent multiple simultaneous syncs
-    
+
     setSyncingId(order.id);
     try {
       console.log(`📡 Digital Sync Initiated: Order #${order.id}`);
       await printReceipt(order);
-      
+
       // Success feedback
       setLastSyncedId(order.id);
       setTimeout(() => setLastSyncedId(null), 3000); // Reset "Checkmark" after 3s
@@ -98,6 +100,8 @@ export default function AdminOrders({ isStudentView = false }) {
       setSyncingId(null);
     }
   };
+  console.log("🕵️ DEBUG - Raw Orders:", orders.length);
+  console.log("🕵️ DEBUG - Filtered History:", historyOrders.length);
 
   return (
     <div className="space-y-8 p-4 text-left animate-in fade-in duration-500">
@@ -114,7 +118,9 @@ export default function AdminOrders({ isStudentView = false }) {
           </div>
           <div className="p-6 bg-white border-2 border-slate-50 rounded-3xl shadow-sm border-l-amber-500 border-l-4">
             <p className="text-[10px] font-black uppercase text-amber-600 tracking-widest">Live Queue</p>
-            <h3 className="text-3xl font-black text-slate-900">{historyOrders.length}</h3>
+            <h3 className="text-3xl font-black text-slate-900">
+              {historyOrders.filter(o => !['CLAIMED', 'COMPLETED', 'RELEASED'].includes(String(o.status).toUpperCase())).length}
+            </h3>
           </div>
         </div>
       )}
@@ -189,9 +195,8 @@ export default function AdminOrders({ isStudentView = false }) {
                   </td>
 
                   <td className="px-6 py-4">
-                    <span className={`px-2 py-1 text-[9px] font-black rounded-full border uppercase tracking-tighter ${
-                      STATUS_THEMES[String(order.status).toUpperCase()] || STATUS_THEMES.PENDING
-                    }`}>
+                    <span className={`px-2 py-1 text-[9px] font-black rounded-full border uppercase tracking-tighter ${STATUS_THEMES[String(order.status).toUpperCase()] || STATUS_THEMES.PENDING
+                      }`}>
                       {order.status}
                     </span>
                   </td>
@@ -201,11 +206,10 @@ export default function AdminOrders({ isStudentView = false }) {
                       <button
                         disabled={syncingId === order.id}
                         onClick={() => handleDiscordSync(order)}
-                        className={`flex items-center gap-2 ml-auto px-4 py-2 font-black text-[10px] rounded-xl transition-all active:scale-95 shadow-sm uppercase tracking-tighter ${
-                          lastSyncedId === order.id 
-                            ? 'bg-emerald-600 text-white' 
-                            : 'bg-slate-100 text-slate-500 hover:bg-indigo-600 hover:text-white'
-                        }`}
+                        className={`flex items-center gap-2 ml-auto px-4 py-2 font-black text-[10px] rounded-xl transition-all active:scale-95 shadow-sm uppercase tracking-tighter ${lastSyncedId === order.id
+                          ? 'bg-emerald-600 text-white'
+                          : 'bg-slate-100 text-slate-500 hover:bg-indigo-600 hover:text-white'
+                          }`}
                       >
                         {syncingId === order.id ? (
                           <span className="animate-spin text-lg">⏳</span>

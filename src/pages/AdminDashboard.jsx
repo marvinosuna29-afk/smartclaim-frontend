@@ -14,7 +14,7 @@ export default function AdminDashboard({ setActiveTab }) {
     toggleOfficeStatus,
     updateOrderStatusBulk,
     printReceipt, // 📡 Now triggers Discord Webhook
-    refreshData 
+    refreshData
   } = useApp();
 
   const [processingId, setProcessingId] = useState(null);
@@ -24,7 +24,7 @@ export default function AdminDashboard({ setActiveTab }) {
     if (typeof refreshData === 'function') refreshData();
     const heartbeat = setInterval(() => {
       if (typeof refreshData === 'function') refreshData();
-    }, 10000); 
+    }, 10000);
     return () => clearInterval(heartbeat);
   }, [refreshData]);
 
@@ -48,7 +48,12 @@ export default function AdminDashboard({ setActiveTab }) {
   }, [orders]);
 
   const activePickupQueue = useMemo(() => {
-    return (orders || []).filter(o => String(o.status || "").toUpperCase() === 'READY');
+    if (!orders) return [];
+    return orders.filter(o => {
+      const s = String(o.status || "").toUpperCase().trim();
+      // Only count items that are actually waiting for the student at the counter
+      return s === 'READY';
+    });
   }, [orders]);
 
   const lowStockCount = useMemo(() => {
@@ -74,7 +79,7 @@ export default function AdminDashboard({ setActiveTab }) {
   // 🚀 AUTOMATED VERIFICATION HANDLER
   const handleVerify = async (order) => {
     if (!order.id || processingId) return;
-    
+
     const confirmAction = window.confirm(`Verify payment for Order #${order.id}? This will also sync the receipt to Discord.`);
     if (!confirmAction) return;
 
@@ -82,7 +87,7 @@ export default function AdminDashboard({ setActiveTab }) {
     try {
       // 1. Update status in Database
       await updateOrderStatusBulk([order.id], 'READY');
-      
+
       // 2. Trigger Discord Webhook (the old printReceipt function)
       if (typeof printReceipt === 'function') {
         await printReceipt(order);
@@ -100,7 +105,7 @@ export default function AdminDashboard({ setActiveTab }) {
 
   return (
     <div className="space-y-10 pb-12 text-left animate-in fade-in duration-700">
-      
+
       {/* HEADER SECTION: SERVER STATUS & QUEUE */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch no-print">
         <div className="lg:col-span-8 bg-slate-950 p-8 md:p-12 rounded-[3.5rem] text-white shadow-2xl flex flex-col xl:flex-row items-center justify-between gap-8 relative overflow-hidden">
@@ -183,8 +188,8 @@ export default function AdminDashboard({ setActiveTab }) {
                   <div className="flex justify-between items-start mb-2 gap-4">
                     <p className="text-sm font-black text-slate-800 uppercase truncate">{order.item_name}</p>
                     {/* Manual Sync Button */}
-                    <button 
-                      onClick={() => printReceipt?.(order)} 
+                    <button
+                      onClick={() => printReceipt?.(order)}
                       title="Manually Sync to Discord"
                       className="p-2 bg-white rounded-lg border border-slate-200 text-slate-400 hover:text-indigo-600 transition-all active:scale-90"
                     >
@@ -207,7 +212,7 @@ export default function AdminDashboard({ setActiveTab }) {
                       </span>
                     )}
                   </div>
-                  
+
                   <button
                     disabled={processingId === order.id}
                     onClick={() => handleVerify(order)}

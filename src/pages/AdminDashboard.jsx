@@ -15,7 +15,7 @@ export default function AdminDashboard({ setActiveTab }) {
     updateOrderStatusBulk,
     printReceipt,
     refreshData,
-    loading // Added loading from context
+    loading
   } = useApp();
 
   const [processingId, setProcessingId] = useState(null);
@@ -23,18 +23,16 @@ export default function AdminDashboard({ setActiveTab }) {
   // 1. Initial & Heartbeat Sync
   useEffect(() => {
     refreshData?.();
-    const hb = setInterval(() => refreshData?.(), 30000); // 30s is enough
+    const hb = setInterval(() => refreshData?.(), 30000);
     return () => clearInterval(hb);
   }, [refreshData]);
 
-  // 2. DATA NORMALIZATION (Crucial for the Table/Chart)
-  // This ensures that even if the DB has messy names, the dashboard finds them.
+  // 2. DATA NORMALIZATION
   const normalizedOrders = useMemo(() => {
     return orders.map(o => ({
       ...o,
       status: String(o.status || 'PENDING').toUpperCase().trim(),
       itemName: (o.item_name || o.itemName || "").trim(),
-      // Force a clean date string for the chart to consume
       chartDate: o.created_at || o.date
     }));
   }, [orders]);
@@ -81,7 +79,6 @@ export default function AdminDashboard({ setActiveTab }) {
       setProcessingId(null);
     }
   };
-  console.log("Chart Input:", orders[0])
 
   return (
     <div className="space-y-10 pb-12 text-left animate-in fade-in duration-700">
@@ -130,7 +127,7 @@ export default function AdminDashboard({ setActiveTab }) {
       </div>
 
       {/* ANALYTICS & AUDIT */}
-      <section className="bg-white border border-slate-100 rounded-[3.5rem] p-8 md:p-10 shadow-sm relative overflow-hidden">
+      <section className="bg-white border border-slate-100 rounded-[3.5rem] p-8 md:p-10 shadow-sm relative">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4">
           <div>
             <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tighter flex items-center gap-2">
@@ -143,13 +140,15 @@ export default function AdminDashboard({ setActiveTab }) {
           </button>
         </div>
 
-        {/* CHART AREA - Fixed visibility check */}
-        <div className="w-full mb-12 no-print bg-slate-50 rounded-[2.5rem] p-6 border border-slate-100 block"
-          style={{ height: '400px', minHeight: '400px', position: 'relative' }}>
+        {/* --- FIXED CHART AREA --- */}
+        <div 
+          className="w-full mb-12 no-print bg-slate-50 rounded-[2.5rem] p-6 border border-slate-100 block relative"
+          style={{ height: '450px', minHeight: '450px' }}
+        >
           {normalizedOrders.length > 0 ? (
             <OrderAnalytics orders={normalizedOrders} />
           ) : (
-            <div className="h-[300px] flex flex-col items-center justify-center text-slate-300">
+            <div className="h-full flex flex-col items-center justify-center text-slate-300">
               <Database size={48} className="mb-4 opacity-20" />
               <p className="text-[10px] font-black uppercase tracking-widest">Awaiting Database Feed...</p>
             </div>
@@ -170,7 +169,6 @@ export default function AdminDashboard({ setActiveTab }) {
             </thead>
             <tbody className="divide-y divide-slate-50">
               {items.map((item) => {
-                // Search by both Name and ID to be safe
                 const itemOrders = normalizedOrders.filter(o =>
                   o.itemName === item.name || String(o.item_id) === String(item.id)
                 );

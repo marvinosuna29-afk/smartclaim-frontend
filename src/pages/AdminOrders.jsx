@@ -100,8 +100,6 @@ export default function AdminOrders({ isStudentView = false }) {
       setSyncingId(null);
     }
   };
-  console.log("🕵️ DEBUG - Raw Orders:", orders.length);
-  console.log("🕵️ DEBUG - Filtered History:", historyOrders.length);
 
   return (
     <div className="space-y-8 p-4 text-left animate-in fade-in duration-500">

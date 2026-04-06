@@ -106,10 +106,28 @@ export default function AdminDashboard({ setActiveTab }) {
     }
   };
 
+  // --- RESTORED AUDIT LOG LOGIC ---
+  const auditSummary = useMemo(() => {
+    return (items || []).map(item => {
+      const itemOrders = (orders || []).filter(o =>
+        o.item_id === item.id || o.item_name === item.name
+      );
+      const completed = itemOrders.filter(o =>
+        ['CLAIMED', 'COMPLETED', 'RELEASED', 'READY'].includes(String(o.status).toUpperCase())
+      ).length;
+
+      return {
+        ...item,
+        orderCount: itemOrders.length,
+        completedCount: completed
+      };
+    });
+  }, [items, orders]);
+
   return (
     <div className="space-y-10 pb-12 text-left animate-in fade-in duration-700">
 
-      {/* HEADER SECTION: SERVER STATUS & QUEUE */}
+      {/* 1. HEADER SECTION: SERVER STATUS & QUEUE (no-print) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch no-print">
         <div className="lg:col-span-8 bg-slate-950 p-8 md:p-12 rounded-[3.5rem] text-white shadow-2xl flex flex-col xl:flex-row items-center justify-between gap-8 relative overflow-hidden">
           <div className="relative z-10">
@@ -144,39 +162,90 @@ export default function AdminDashboard({ setActiveTab }) {
         </div>
       </div>
 
-      {/* ANALYTICS SECTION */}
-      <section className="bg-white border border-slate-100 rounded-[3.5rem] p-8 md:p-10 shadow-sm no-print relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full -mr-16 -mt-16 blur-3xl" />
+      {/* 2. ANALYTICS & AUDIT LOG SECTION */}
+      <section className="bg-white border border-slate-100 rounded-[3.5rem] p-8 md:p-10 shadow-sm relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full -mr-16 -mt-16 blur-3xl no-print" />
+
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4 relative z-10">
           <div>
             <h3 className="text-2xl font-black text-slate-900 flex items-center gap-3 uppercase tracking-tighter">
               <div className="p-2 bg-emerald-100 text-emerald-600 rounded-xl shadow-sm">
                 <TrendingUp size={20} />
               </div>
-              Performance Metrics
+              System Audit & Analytics
             </h3>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-2 flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              Real-time System Throughput
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-2 no-print">
+              Real-time Performance & Order Volume
+            </p>
+            {/* PRINT ONLY HEADER */}
+            <p className="hidden print:block text-xs font-bold text-slate-500 mt-1">
+              Generated on: {new Date().toLocaleString()}
             </p>
           </div>
+
+          <button
+            onClick={() => window.print()}
+            className="no-print px-6 py-3 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-600 transition-all flex items-center gap-2"
+          >
+            <Send size={14} /> Generate Print Audit
+          </button>
         </div>
 
-        <div className="w-full" style={{ minHeight: '350px' }}>
+        {/* 📉 THE CHART (no-print) */}
+        <div className="w-full mb-12 no-print" style={{ minHeight: '350px', height: '350px' }}>
           {orders && orders.length > 0 ? (
-            <div className="block animate-in fade-in slide-in-from-bottom-4 delay-300 duration-1000">
-              <OrderAnalytics orders={orders} />
-            </div>
+            <OrderAnalytics orders={orders} />
           ) : (
-            <div className="py-24 text-center space-y-4 bg-slate-50/50 rounded-[2.5rem] border-2 border-dashed border-slate-100">
-              <Package className="mx-auto text-slate-200" size={32} />
+            <div className="h-full flex flex-col items-center justify-center space-y-4 bg-slate-50/50 rounded-[2.5rem] border-2 border-dashed border-slate-100">
+              <Package className="text-slate-200" size={32} />
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Awaiting Data Feed</p>
             </div>
           )}
         </div>
+
+        {/* 📋 RESTORED AUDIT TABLE (Visible on Screen & Print) */}
+        <div className="relative z-10">
+          <div className="flex items-center justify-between mb-6 no-print">
+            <h4 className="text-sm font-black uppercase tracking-widest text-slate-800">Order Quantity Breakdown</h4>
+          </div>
+
+          <div className="overflow-hidden rounded-[2.5rem] border border-slate-100 bg-white">
+            <table className="w-full text-left border-collapse">
+              <thead className="bg-slate-50/50">
+                <tr className="text-[10px] font-black uppercase text-slate-400 tracking-widest">
+                  <th className="px-8 py-5">Item Details</th>
+                  <th className="px-8 py-5 text-center">Total Requests</th>
+                  <th className="px-8 py-5 text-center">Fulfilled</th>
+                  <th className="px-8 py-5 text-right">Throughput</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {auditSummary.map((item) => (
+                  <tr key={item.id} className="group hover:bg-slate-50/50 transition-colors">
+                    <td className="px-8 py-5">
+                      <p className="font-black text-slate-900 text-sm uppercase">{item.name}</p>
+                      <p className="text-[10px] text-slate-400 font-bold tracking-tight">ID: {item.id}</p>
+                    </td>
+                    <td className="px-8 py-5 text-center font-bold text-slate-600">
+                      {item.orderCount}
+                    </td>
+                    <td className="px-8 py-5 text-center">
+                      <span className={`px-3 py-1 rounded-full text-[10px] font-black ${item.completedCount > 0 ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
+                        {item.completedCount}
+                      </span>
+                    </td>
+                    <td className="px-8 py-5 text-right font-mono font-bold text-slate-400">
+                      {item.orderCount > 0 ? Math.round((item.completedCount / item.orderCount) * 100) : 0}%
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </section>
 
-      {/* VERIFICATION QUEUE (The main change is here) */}
+      {/* 3. VERIFICATION QUEUE (no-print) */}
       <section className="bg-white border border-slate-100 rounded-[3.5rem] p-8 md:p-10 shadow-sm no-print">
         <h3 className="text-2xl font-black text-slate-900 flex items-center gap-3 uppercase tracking-tighter mb-8">
           <div className="p-2 bg-amber-100 text-amber-600 rounded-xl"><AlertTriangle size={20} /></div>
@@ -190,24 +259,23 @@ export default function AdminDashboard({ setActiveTab }) {
                 <div className="mb-6">
                   <div className="flex justify-between items-start mb-2 gap-4">
                     <p className="text-sm font-black text-slate-800 uppercase truncate">{order.item_name}</p>
-                    {/* Manual Sync Button */}
                     <button
                       onClick={() => printReceipt?.(order)}
-                      title="Manually Sync to Discord"
+                      title="Sync to Discord"
                       className="p-2 bg-white rounded-lg border border-slate-200 text-slate-400 hover:text-indigo-600 transition-all active:scale-90"
                     >
                       <Hash size={16} />
                     </button>
                   </div>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Order Reference #{order.id}</p>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Ref #{order.id}</p>
                 </div>
 
                 <div className="space-y-4">
                   <div className="bg-white border border-slate-200 p-4 rounded-2xl">
-                    <p className="text-[8px] font-black text-slate-400 uppercase mb-1 tracking-widest">Verification Data</p>
+                    <p className="text-[8px] font-black text-slate-400 uppercase mb-1 tracking-widest">Attachment</p>
                     {order.receipt_url?.startsWith('http') ? (
                       <a href={order.receipt_url} target="_blank" rel="noreferrer" className="text-xs font-mono font-bold text-blue-600 hover:underline truncate block">
-                        View Attachment ↗
+                        View Receipt ↗
                       </a>
                     ) : (
                       <span className="text-xs font-mono font-bold text-emerald-700 break-all block">
@@ -221,11 +289,7 @@ export default function AdminDashboard({ setActiveTab }) {
                     onClick={() => handleVerify(order)}
                     className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-950 transition-all shadow-sm flex items-center justify-center gap-2 disabled:opacity-50"
                   >
-                    {processingId === order.id ? (
-                      <Loader2 size={14} className="animate-spin" />
-                    ) : (
-                      <Send size={14} />
-                    )}
+                    {processingId === order.id ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
                     {processingId === order.id ? 'Processing...' : 'Verify & Send Receipt'}
                   </button>
                 </div>
@@ -235,12 +299,12 @@ export default function AdminDashboard({ setActiveTab }) {
         ) : (
           <div className="py-20 text-center bg-slate-50 rounded-[3rem] border-4 border-dashed border-slate-100">
             <CheckCircle className="mx-auto text-emerald-200 mb-4" size={48} />
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Queue Clear - No pending verifications</p>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Queue Clear</p>
           </div>
         )}
       </section>
 
-      {/* STATS TILES */}
+      {/* 4. STATS TILES (no-print) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 no-print">
         {statsCards.map((stat, i) => (
           <button

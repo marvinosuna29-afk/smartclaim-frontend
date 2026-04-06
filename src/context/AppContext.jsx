@@ -361,14 +361,17 @@ export const AppProvider = ({ children }) => {
       user, users, items, orders, announcements, officeStatus, loading, privateAlert,
       currentQueue, readyOrders, refreshUser, currentServingId, myOrders,
 
-      // 2. Stable Function Aliases
+      // 2. Add the API helper here so components can use it!
+      api,
+
+      // 3. Stable Function Aliases
       refreshData: () => refreshDataRef.current(),
       refreshOrders: () => refreshDataRef.current(),
       fetchOrders: () => refreshDataRef.current(),
       fetchStats: () => refreshDataRef.current(),
       syncStats: () => refreshDataRef.current(),
 
-      // 3. Spread the rest of the actions
+      // 4. Spread the rest of the actions
       ...actions
     }}>
       {children}

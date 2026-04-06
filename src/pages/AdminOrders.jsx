@@ -18,12 +18,16 @@ export default function AdminOrders({ isStudentView = false }) {
   const [searchTerm, setSearchTerm] = useState("");
   const [dbStats, setDbStats] = useState({ totalCompleted: 0, todayCompleted: 0 });
 
-  // 1. SYNC STATS FROM BACKEND
+  // 1. SYNC STATS FROM BACKEND (🛡️ PROTECTED)
   const fetchDbStats = async () => {
+    // Guard 1: Only admins need stats
     if (isStudentView || user?.role?.toLowerCase() !== 'admin') return;
+    // Guard 2: Ensure api is a function (Prevents 'l is not a function' crash)
+    if (typeof api !== 'function') return;
+
     try {
       const res = await api(`/api/admin/stats?adminId=${user.id}`);
-      if (res && res.success) {
+      if (res && res.ok && res.data) { // Added res.ok check
         setDbStats({
           totalCompleted: res.data.totalCompleted || 0,
           todayCompleted: res.data.todayCompleted || 0
@@ -35,8 +39,11 @@ export default function AdminOrders({ isStudentView = false }) {
   };
 
   useEffect(() => {
-    fetchDbStats();
-  }, [orders?.length, isStudentView]);
+    // Only fetch if we have a valid user and api function
+    if (user?.id && typeof api === 'function') {
+      fetchDbStats();
+    }
+  }, [orders?.length, isStudentView, user?.id]); // Added user.id to dependencies
 
   // 2. DEFENSIVE SEARCH & FILTER LOGIC
   const historyOrders = useMemo(() => {
@@ -54,7 +61,7 @@ export default function AdminOrders({ isStudentView = false }) {
       // Visibility: Admin sees all, Students see only their finished claims
       const finishedStatuses = ['CLAIMED', 'RELEASED', 'COMPLETED', 'DELIVERED'];
       const isFinished = finishedStatuses.includes(status);
-      
+
       const isVisible = isStudentView ? isFinished : true;
       const isOwner = isStudentView ? currentUserId === String(user?.id) : true;
 
@@ -72,10 +79,10 @@ export default function AdminOrders({ isStudentView = false }) {
   }, [orders, searchTerm, user?.id, isStudentView]);
 
   // 3. ENHANCED STATS CALCULATIONS
-  const displayTotal = useMemo(() => 
-    dbStats.totalCompleted || historyOrders.filter(o => 
+  const displayTotal = useMemo(() =>
+    dbStats.totalCompleted || historyOrders.filter(o =>
       ['CLAIMED', 'COMPLETED'].includes(String(o.status).toUpperCase())
-    ).length, 
+    ).length,
     [dbStats.totalCompleted, historyOrders]
   );
 
@@ -126,7 +133,7 @@ export default function AdminOrders({ isStudentView = false }) {
               <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Live System Feed</p>
             </div>
           </div>
-          
+
           <div className="relative w-full md:w-80">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
             <input
@@ -184,9 +191,8 @@ export default function AdminOrders({ isStudentView = false }) {
                   </td>
 
                   <td className="px-6 py-4">
-                    <span className={`px-2 py-1 text-[9px] font-black rounded-full border uppercase tracking-tighter ${
-                      STATUS_THEMES[String(order.status).toUpperCase()] || STATUS_THEMES.PENDING
-                    }`}>
+                    <span className={`px-2 py-1 text-[9px] font-black rounded-full border uppercase tracking-tighter ${STATUS_THEMES[String(order.status).toUpperCase()] || STATUS_THEMES.PENDING
+                      }`}>
                       {order.status}
                     </span>
                   </td>

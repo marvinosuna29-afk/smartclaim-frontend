@@ -1,8 +1,8 @@
-import React, { useMemo, useEffect } from 'react'; // Added useEffect
+import React, { useMemo, useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import {
-  Package, Clock, AlertTriangle, Printer,
-  CheckCircle, Power, Info, TrendingUp
+  Package, Clock, AlertTriangle, Hash,
+  CheckCircle, Power, Info, TrendingUp, Send, Loader2
 } from 'lucide-react';
 import OrderAnalytics from '../components/OrderAnalytics';
 
@@ -13,26 +13,18 @@ export default function AdminDashboard({ setActiveTab }) {
     officeStatus,
     toggleOfficeStatus,
     updateOrderStatusBulk,
-    printReceipt,
-    refreshData // This was likely the 'l' function failing
+    printReceipt, // 📡 Now triggers Discord Webhook
+    refreshData 
   } = useApp();
 
-  // 🛡️ HEARTBEAT REFRESH: Keeps the dashboard live
+  const [processingId, setProcessingId] = useState(null);
+
+  // 🛡️ HEARTBEAT REFRESH: Keeps data live every 10 seconds
   useEffect(() => {
-    // 1. Initial fetch when admin logs in
-    if (typeof refreshData === 'function') {
-      refreshData();
-    }
-
-    // 2. Set up a heartbeat to check for new orders every 10 seconds
+    if (typeof refreshData === 'function') refreshData();
     const heartbeat = setInterval(() => {
-      if (typeof refreshData === 'function') {
-        console.log("Auto-syncing dashboard stats...");
-        refreshData();
-      }
-    }, 10000); // 10 seconds
-
-    // 3. Cleanup: Stop the heartbeat if the admin leaves the dashboard
+      if (typeof refreshData === 'function') refreshData();
+    }, 10000); 
     return () => clearInterval(heartbeat);
   }, [refreshData]);
 
@@ -47,7 +39,7 @@ export default function AdminDashboard({ setActiveTab }) {
     if (!result?.success) alert(result?.error || "Update failed");
   };
 
-  // --- DATA FILTERING & QUEUE LOGIC ---
+  // --- DATA FILTERING ---
   const ordersToVerify = useMemo(() => {
     return (orders || []).filter(o => {
       const s = String(o.status || "").toUpperCase();
@@ -59,8 +51,6 @@ export default function AdminDashboard({ setActiveTab }) {
     return (orders || []).filter(o => String(o.status || "").toUpperCase() === 'READY');
   }, [orders]);
 
-  const displayQueue = useMemo(() => activePickupQueue.length, [activePickupQueue]);
-
   const lowStockCount = useMemo(() => {
     return (items || []).filter(i => i && Number(i.is_low_stock) === 1).length;
   }, [items]);
@@ -70,8 +60,7 @@ export default function AdminDashboard({ setActiveTab }) {
     return items.reduce((acc, item) => {
       if (!item) return acc;
       const sizesObj = (item.sizes && typeof item.sizes === 'object') ? item.sizes : {};
-      const itemTotal = Object.values(sizesObj).reduce((a, b) => a + (Number(b) || 0), 0);
-      return acc + itemTotal;
+      return acc + Object.values(sizesObj).reduce((a, b) => a + (Number(b) || 0), 0);
     }, 0);
   }, [items]);
 
@@ -82,9 +71,37 @@ export default function AdminDashboard({ setActiveTab }) {
     { label: 'Total Units', value: totalUnits, icon: Package, color: 'bg-emerald-500', tab: 'inventory' },
   ], [ordersToVerify, activePickupQueue, lowStockCount, totalUnits]);
 
+  // 🚀 AUTOMATED VERIFICATION HANDLER
+  const handleVerify = async (order) => {
+    if (!order.id || processingId) return;
+    
+    const confirmAction = window.confirm(`Verify payment for Order #${order.id}? This will also sync the receipt to Discord.`);
+    if (!confirmAction) return;
+
+    setProcessingId(order.id);
+    try {
+      // 1. Update status in Database
+      await updateOrderStatusBulk([order.id], 'READY');
+      
+      // 2. Trigger Discord Webhook (the old printReceipt function)
+      if (typeof printReceipt === 'function') {
+        await printReceipt(order);
+      }
+
+      // 3. Refresh UI
+      if (typeof refreshData === 'function') refreshData();
+    } catch (err) {
+      console.error("Verification error:", err);
+      alert("Process failed. Please check connection.");
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
   return (
     <div className="space-y-10 pb-12 text-left animate-in fade-in duration-700">
-      {/* QUEUE & SYSTEM STATUS */}
+      
+      {/* HEADER SECTION: SERVER STATUS & QUEUE */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch no-print">
         <div className="lg:col-span-8 bg-slate-950 p-8 md:p-12 rounded-[3.5rem] text-white shadow-2xl flex flex-col xl:flex-row items-center justify-between gap-8 relative overflow-hidden">
           <div className="relative z-10">
@@ -98,7 +115,7 @@ export default function AdminDashboard({ setActiveTab }) {
           </div>
           <div className="bg-white/5 backdrop-blur-2xl border border-white/10 p-10 rounded-[4rem] text-center min-w-[220px] z-10">
             <span className="text-8xl xl:text-9xl font-black tracking-tighter bg-gradient-to-b from-white to-slate-400 bg-clip-text text-transparent">
-              {String(displayQueue || 0).padStart(3, '0')}
+              {String(activePickupQueue.length || 0).padStart(3, '0')}
             </span>
           </div>
         </div>
@@ -108,18 +125,18 @@ export default function AdminDashboard({ setActiveTab }) {
             <div className={`p-4 rounded-2xl ${currentStatus === 'OPEN' ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}`}>
               <Power size={28} />
             </div>
-            <button onClick={handleToggle} className={`px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest ${currentStatus === 'OPEN' ? 'bg-emerald-900 text-white' : 'bg-red-600 text-white'}`}>
+            <button onClick={handleToggle} className={`px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-transform active:scale-95 ${currentStatus === 'OPEN' ? 'bg-emerald-900 text-white' : 'bg-red-600 text-white'}`}>
               {currentStatus}
             </button>
           </div>
           <div className="mt-6">
             <h4 className="text-[10px] font-black uppercase text-slate-800 tracking-widest">System Operations</h4>
-            <p className="text-[11px] font-bold text-slate-400 mt-2 italic">Official System {currentStatus}</p>
+            <p className="text-[11px] font-bold text-slate-400 mt-2 italic">Official System Status: {currentStatus}</p>
           </div>
         </div>
       </div>
 
-      {/* PERFORMANCE METRICS */}
+      {/* ANALYTICS SECTION */}
       <section className="bg-white border border-slate-100 rounded-[3.5rem] p-8 md:p-10 shadow-sm no-print relative overflow-hidden">
         <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full -mr-16 -mt-16 blur-3xl" />
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4 relative z-10">
@@ -135,32 +152,23 @@ export default function AdminDashboard({ setActiveTab }) {
               Real-time System Throughput
             </p>
           </div>
-          <div className="flex gap-2">
-            <div className="px-4 py-2 bg-slate-50 rounded-2xl border border-slate-100">
-              <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Data Points</p>
-              <p className="text-sm font-black text-slate-900">{orders?.length || 0}</p>
-            </div>
-          </div>
         </div>
 
-        {/* 🛡️ DATA-READY RENDER - FIXED WRAPPER */}
-        <div className="w-full" style={{ minHeight: '350px' }}> {/* 👈 Force height here too */}
+        <div className="w-full" style={{ minHeight: '350px' }}>
           {orders && orders.length > 0 ? (
             <div className="block animate-in fade-in slide-in-from-bottom-4 delay-300 duration-1000">
               <OrderAnalytics orders={orders} />
             </div>
           ) : (
             <div className="py-24 text-center space-y-4 bg-slate-50/50 rounded-[2.5rem] border-2 border-dashed border-slate-100">
-              <div className="mx-auto w-12 h-12 bg-white rounded-2xl shadow-sm flex items-center justify-center text-slate-200">
-                <Package size={24} />
-              </div>
+              <Package className="mx-auto text-slate-200" size={32} />
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Awaiting Data Feed</p>
             </div>
           )}
         </div>
       </section>
 
-      {/* VERIFICATION QUEUE */}
+      {/* VERIFICATION QUEUE (The main change is here) */}
       <section className="bg-white border border-slate-100 rounded-[3.5rem] p-8 md:p-10 shadow-sm no-print">
         <h3 className="text-2xl font-black text-slate-900 flex items-center gap-3 uppercase tracking-tighter mb-8">
           <div className="p-2 bg-amber-100 text-amber-600 rounded-xl"><AlertTriangle size={20} /></div>
@@ -170,16 +178,22 @@ export default function AdminDashboard({ setActiveTab }) {
         {ordersToVerify.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
             {ordersToVerify.map(order => (
-              <div key={order.id} className="bg-slate-50/50 p-6 rounded-[2.5rem] border border-slate-100 flex flex-col justify-between group hover:bg-white hover:border-emerald-200 transition-all">
+              <div key={order.id} className="bg-slate-50/50 p-6 rounded-[2.5rem] border border-slate-100 flex flex-col justify-between group hover:bg-white hover:border-indigo-200 transition-all shadow-hover">
                 <div className="mb-6">
                   <div className="flex justify-between items-start mb-2 gap-4">
                     <p className="text-sm font-black text-slate-800 uppercase truncate">{order.item_name}</p>
-                    <button onClick={() => printReceipt?.(order)} className="p-2 bg-white rounded-lg border border-slate-200 text-slate-400 hover:text-emerald-600 transition-all">
-                      <Printer size={16} />
+                    {/* Manual Sync Button */}
+                    <button 
+                      onClick={() => printReceipt?.(order)} 
+                      title="Manually Sync to Discord"
+                      className="p-2 bg-white rounded-lg border border-slate-200 text-slate-400 hover:text-indigo-600 transition-all active:scale-90"
+                    >
+                      <Hash size={16} />
                     </button>
                   </div>
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Order Reference #{order.id}</p>
                 </div>
+
                 <div className="space-y-4">
                   <div className="bg-white border border-slate-200 p-4 rounded-2xl">
                     <p className="text-[8px] font-black text-slate-400 uppercase mb-1 tracking-widest">Verification Data</p>
@@ -189,27 +203,22 @@ export default function AdminDashboard({ setActiveTab }) {
                       </a>
                     ) : (
                       <span className="text-xs font-mono font-bold text-emerald-700 break-all block">
-                        {order.receipt_url || order.reference_number || "NO REF PROVIDED"}
+                        {order.receipt_url || order.reference_number || "NO REF"}
                       </span>
                     )}
                   </div>
+                  
                   <button
-                    onClick={async () => {
-                      if (!order.id) return;
-                      const confirmAction = window.confirm("Verify payment and move to pickup queue?");
-                      if (confirmAction && typeof updateOrderStatusBulk === 'function') {
-                        try {
-                          await updateOrderStatusBulk([order.id], 'READY');
-                          // Optional: Manual refresh immediately after success
-                          if (typeof refreshData === 'function') refreshData();
-                        } catch (err) {
-                          alert("Verification failed. Please check connection.");
-                        }
-                      }
-                    }}
-                    className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-emerald-950 transition-all shadow-sm"
+                    disabled={processingId === order.id}
+                    onClick={() => handleVerify(order)}
+                    className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-950 transition-all shadow-sm flex items-center justify-center gap-2 disabled:opacity-50"
                   >
-                    Verify & Release
+                    {processingId === order.id ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : (
+                      <Send size={14} />
+                    )}
+                    {processingId === order.id ? 'Processing...' : 'Verify & Send Receipt'}
                   </button>
                 </div>
               </div>
@@ -218,7 +227,7 @@ export default function AdminDashboard({ setActiveTab }) {
         ) : (
           <div className="py-20 text-center bg-slate-50 rounded-[3rem] border-4 border-dashed border-slate-100">
             <CheckCircle className="mx-auto text-emerald-200 mb-4" size={48} />
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No pending verifications</p>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Queue Clear - No pending verifications</p>
           </div>
         )}
       </section>

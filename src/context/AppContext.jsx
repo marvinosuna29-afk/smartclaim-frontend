@@ -5,6 +5,7 @@ import { io } from 'socket.io-client';
 const AppContext = createContext();
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://smartclaim-backend.onrender.com';
 const socket = io(API_BASE_URL, { transports: ['websocket'] });
+const DISCORD_RECEIPT_WEBHOOK = import.meta.env.VITE_DISCORD_RECEIPT_WEBHOOK;
 
 export const AppProvider = ({ children }) => {
   // --- 1. BASE STATE ---
@@ -288,10 +289,49 @@ export const AppProvider = ({ children }) => {
         }
         return { success: false, error: r.data?.message || "Server Error" };
       },
-      printReceipt: (order) => { if (order) window.print(); },
-      addAnnouncement: async (msg, expires_at) => {
-        const r = await api('/api/announcements', 'POST', { content: msg, type: 'info', expires_at, adminId: stableUserId });
-        return r.ok ? { success: true } : { success: false };
+      printReceipt: async (order) => {
+        if (!order) return;
+
+        // 🛡️ Guard: Check if Render has the webhook configured
+        if (!DISCORD_RECEIPT_WEBHOOK) {
+          console.error("Discord Webhook not found in Render Environment Variables.");
+          alert("E-Receipt Error: Webhook not configured. Printing manually...");
+          window.print();
+          return;
+        }
+
+        const receiptData = {
+          embeds: [{
+            title: "📄 Official Digital Receipt",
+            description: `**${order.full_name || "Student"}** has successfully claimed their item.`,
+            color: 0x10b981,
+            fields: [
+              { name: "Order ID", value: `#${order.id}`, inline: true },
+              { name: "Item", value: order.item_name || order.itemName, inline: true },
+              { name: "Size", value: order.size || "Standard", inline: true },
+              { name: "Date/Time", value: new Date().toLocaleString(), inline: false }
+            ],
+            footer: { text: "SmartClaim • Verified Digital Record" }
+          }]
+        };
+
+        try {
+          const res = await fetch(DISCORD_RECEIPT_WEBHOOK, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(receiptData)
+          });
+
+          if (res.ok) {
+            alert("✅ Digital Receipt sent to Discord!");
+          } else {
+            throw new Error("Discord API rejected the request");
+          }
+        } catch (err) {
+          console.error("Discord Sync Error:", err);
+          alert("⚠️ Sync failed. Printing physical copy instead.");
+          window.print();
+        }
       },
       deleteAnnouncement: async (id) => {
         const r = await api(`/api/announcements/${id}?adminId=${stableUserId}`, 'DELETE');

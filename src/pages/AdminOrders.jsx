@@ -1,8 +1,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { Printer, Search, User, Mail, Package, AlertCircle } from 'lucide-react';
+import { Hash, Search, User, Mail, Package, AlertCircle, Check } from 'lucide-react';
 
-// 🛡️ ENHANCED: Added fallbacks for every possible status
+// 🛡️ THEME MAPPING: Standardized colors for status badges
 const STATUS_THEMES = {
   CLAIMED: 'bg-emerald-50 text-emerald-600 border-emerald-100',
   COMPLETED: 'bg-emerald-50 text-emerald-600 border-emerald-100',
@@ -17,17 +17,19 @@ export default function AdminOrders({ isStudentView = false }) {
   const { orders, printReceipt, user, api } = useApp();
   const [searchTerm, setSearchTerm] = useState("");
   const [dbStats, setDbStats] = useState({ totalCompleted: 0, todayCompleted: 0 });
+  
+  // 🔄 Local State for UI Feedback
+  const [syncingId, setSyncingId] = useState(null);
+  const [lastSyncedId, setLastSyncedId] = useState(null);
 
-  // 1. SYNC STATS FROM BACKEND (🛡️ PROTECTED)
+  // 1. SYNC STATS FROM BACKEND
   const fetchDbStats = async () => {
-    // Guard 1: Only admins need stats
     if (isStudentView || user?.role?.toLowerCase() !== 'admin') return;
-    // Guard 2: Ensure api is a function (Prevents 'l is not a function' crash)
     if (typeof api !== 'function') return;
 
     try {
       const res = await api(`/api/admin/stats?adminId=${user.id}`);
-      if (res && res.ok && res.data) { // Added res.ok check
+      if (res?.ok && res?.data) {
         setDbStats({
           totalCompleted: res.data.totalCompleted || 0,
           todayCompleted: res.data.todayCompleted || 0
@@ -39,46 +41,38 @@ export default function AdminOrders({ isStudentView = false }) {
   };
 
   useEffect(() => {
-    // Only fetch if we have a valid user and api function
     if (user?.id && typeof api === 'function') {
       fetchDbStats();
     }
-  }, [orders?.length, isStudentView, user?.id]); // Added user.id to dependencies
+  }, [orders?.length, isStudentView, user?.id]);
 
-  // 2. DEFENSIVE SEARCH & FILTER LOGIC
+  // 2. SEARCH & FILTER LOGIC (🛡️ DATA NORMALIZED)
   const historyOrders = useMemo(() => {
     if (!orders || !Array.isArray(orders)) return [];
 
     return orders.filter(o => {
-      // 🛡️ DATA NORMALIZATION: Handle snake_case vs camelCase from DB
       const status = String(o.status || "").toUpperCase().trim();
       const currentUserId = String(o.userId || o.user_id || "");
       const currentItemName = String(o.itemName || o.item_name || o.name || "Unknown Item");
       const currentFullName = String(o.full_name || o.fullName || "Guest Student");
-      const currentEmail = String(o.email || "");
-      const currentOrderId = String(o.id || "");
-
-      // Visibility: Admin sees all, Students see only their finished claims
+      
       const finishedStatuses = ['CLAIMED', 'RELEASED', 'COMPLETED', 'DELIVERED'];
       const isFinished = finishedStatuses.includes(status);
 
       const isVisible = isStudentView ? isFinished : true;
       const isOwner = isStudentView ? currentUserId === String(user?.id) : true;
 
-      // Multi-Field Search
       const searchLower = searchTerm.toLowerCase();
-      const matches = [
+      return isVisible && isOwner && [
         currentItemName.toLowerCase(),
         currentFullName.toLowerCase(),
-        currentEmail.toLowerCase(),
-        currentOrderId
+        String(o.email || "").toLowerCase(),
+        String(o.id || "")
       ].some(field => field.includes(searchLower));
-
-      return isVisible && isOwner && matches;
     });
   }, [orders, searchTerm, user?.id, isStudentView]);
 
-  // 3. ENHANCED STATS CALCULATIONS
+  // 3. STATS CALCULATIONS
   const displayTotal = useMemo(() =>
     dbStats.totalCompleted || historyOrders.filter(o =>
       ['CLAIMED', 'COMPLETED'].includes(String(o.status).toUpperCase())
@@ -86,19 +80,23 @@ export default function AdminOrders({ isStudentView = false }) {
     [dbStats.totalCompleted, historyOrders]
   );
 
-  const queueCount = useMemo(() => {
-    if (!orders) return 0;
-    // 🛡️ EXCLUSION LOGIC: If it's not finished/cancelled, it's in the queue.
-    const finishedStatuses = ['CLAIMED', 'RELEASED', 'COMPLETED', 'DELIVERED', 'REJECTED', 'CANCELLED'];
-    return orders.filter(o => {
-      const s = String(o.status || "").toUpperCase().trim();
-      return s !== "" && !finishedStatuses.includes(s);
-    }).length;
-  }, [orders]);
-
-  const handlePrintAction = (order) => {
-    console.log(`🖨️ Printing Ticket: ID #${order.id}`);
-    printReceipt(order);
+  // 4. DISCORD SYNC HANDLER (With UI Guards)
+  const handleDiscordSync = async (order) => {
+    if (syncingId) return; // Prevent multiple simultaneous syncs
+    
+    setSyncingId(order.id);
+    try {
+      console.log(`📡 Digital Sync Initiated: Order #${order.id}`);
+      await printReceipt(order);
+      
+      // Success feedback
+      setLastSyncedId(order.id);
+      setTimeout(() => setLastSyncedId(null), 3000); // Reset "Checkmark" after 3s
+    } catch (error) {
+      alert("Discord Sync Failed. Check console for details.");
+    } finally {
+      setSyncingId(null);
+    }
   };
 
   return (
@@ -110,13 +108,13 @@ export default function AdminOrders({ isStudentView = false }) {
             <p className="text-[10px] font-black uppercase text-emerald-600 tracking-widest">Lifetime Claims</p>
             <h3 className="text-3xl font-black text-slate-900">{displayTotal}</h3>
           </div>
-          <div className="p-6 bg-white border-2 border-slate-50 rounded-3xl shadow-sm border-l-blue-500 border-l-4">
-            <p className="text-[10px] font-black uppercase text-blue-600 tracking-widest">Today's Total</p>
+          <div className="p-6 bg-white border-2 border-slate-50 rounded-3xl shadow-sm border-l-indigo-500 border-l-4">
+            <p className="text-[10px] font-black uppercase text-indigo-600 tracking-widest">Today's Total</p>
             <h3 className="text-3xl font-black text-slate-900">{dbStats.todayCompleted}</h3>
           </div>
           <div className="p-6 bg-white border-2 border-slate-50 rounded-3xl shadow-sm border-l-amber-500 border-l-4">
             <p className="text-[10px] font-black uppercase text-amber-600 tracking-widest">Live Queue</p>
-            <h3 className="text-3xl font-black text-slate-900">{queueCount}</h3>
+            <h3 className="text-3xl font-black text-slate-900">{historyOrders.length}</h3>
           </div>
         </div>
       )}
@@ -129,8 +127,8 @@ export default function AdminOrders({ isStudentView = false }) {
               {isStudentView ? "My Claim History" : "Audit Log & Records"}
             </h3>
             <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Live System Feed</p>
+              <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
+              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Discord E-Receipt Feed</p>
             </div>
           </div>
 
@@ -139,7 +137,7 @@ export default function AdminOrders({ isStudentView = false }) {
             <input
               type="text"
               placeholder="Search ID, Name, or Item..."
-              className="w-full pl-10 pr-4 py-2.5 bg-white border-2 border-slate-100 rounded-xl text-sm font-bold focus:ring-2 ring-emerald-500 transition-all outline-none"
+              className="w-full pl-10 pr-4 py-2.5 bg-white border-2 border-slate-100 rounded-xl text-sm font-bold focus:ring-2 ring-indigo-500 transition-all outline-none"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -154,7 +152,7 @@ export default function AdminOrders({ isStudentView = false }) {
                 {!isStudentView && <th className="px-6 py-4">Student</th>}
                 <th className="px-6 py-4">Item</th>
                 <th className="px-6 py-4">Status</th>
-                {!isStudentView && <th className="px-6 py-4 text-right">Actions</th>}
+                {!isStudentView && <th className="px-6 py-4 text-right">E-Receipt</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
@@ -167,12 +165,12 @@ export default function AdminOrders({ isStudentView = false }) {
                   {!isStudentView && (
                     <td className="px-6 py-4">
                       <div className="flex flex-col">
-                        <span className="text-sm font-black text-slate-800 flex items-center gap-1 group-hover:text-emerald-600 transition-colors">
-                          <User size={12} className="text-emerald-500" />
+                        <span className="text-sm font-black text-slate-800 flex items-center gap-1 group-hover:text-indigo-600 transition-colors">
+                          <User size={12} className="text-indigo-500" />
                           {order.full_name || order.fullName || "Guest"}
                         </span>
                         <span className="text-[10px] text-slate-400 font-bold flex items-center gap-1">
-                          <Mail size={10} /> {order.email || `ID: ${order.user_id || order.userId}`}
+                          <Mail size={10} /> {order.email || "No Email"}
                         </span>
                       </div>
                     </td>
@@ -184,15 +182,16 @@ export default function AdminOrders({ isStudentView = false }) {
                         <Package size={12} className="text-slate-400" />
                         {order.itemName || order.item_name}
                       </span>
-                      <span className="text-[10px] text-emerald-600 font-black uppercase bg-emerald-50 w-fit px-1.5 rounded">
-                        {order.size}
+                      <span className="text-[10px] text-indigo-600 font-black uppercase bg-indigo-50 w-fit px-1.5 rounded">
+                        {order.size || 'N/A'}
                       </span>
                     </div>
                   </td>
 
                   <td className="px-6 py-4">
-                    <span className={`px-2 py-1 text-[9px] font-black rounded-full border uppercase tracking-tighter ${STATUS_THEMES[String(order.status).toUpperCase()] || STATUS_THEMES.PENDING
-                      }`}>
+                    <span className={`px-2 py-1 text-[9px] font-black rounded-full border uppercase tracking-tighter ${
+                      STATUS_THEMES[String(order.status).toUpperCase()] || STATUS_THEMES.PENDING
+                    }`}>
                       {order.status}
                     </span>
                   </td>
@@ -200,11 +199,22 @@ export default function AdminOrders({ isStudentView = false }) {
                   {!isStudentView && (
                     <td className="px-6 py-4 text-right">
                       <button
-                        onClick={() => handlePrintAction(order)}
-                        className="p-2.5 bg-slate-50 text-slate-400 group-hover:bg-emerald-600 group-hover:text-white rounded-xl transition-all active:scale-95 shadow-sm"
-                        title="Re-print Audit Receipt"
+                        disabled={syncingId === order.id}
+                        onClick={() => handleDiscordSync(order)}
+                        className={`flex items-center gap-2 ml-auto px-4 py-2 font-black text-[10px] rounded-xl transition-all active:scale-95 shadow-sm uppercase tracking-tighter ${
+                          lastSyncedId === order.id 
+                            ? 'bg-emerald-600 text-white' 
+                            : 'bg-slate-100 text-slate-500 hover:bg-indigo-600 hover:text-white'
+                        }`}
                       >
-                        <Printer size={16} />
+                        {syncingId === order.id ? (
+                          <span className="animate-spin text-lg">⏳</span>
+                        ) : lastSyncedId === order.id ? (
+                          <Check size={14} />
+                        ) : (
+                          <Hash size={14} />
+                        )}
+                        {syncingId === order.id ? 'Syncing...' : lastSyncedId === order.id ? 'Sent!' : 'Sync Receipt'}
                       </button>
                     </td>
                   )}

@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  LineChart, 
-  Line, 
+import {
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  LineChart,
+  Line,
   ResponsiveContainer
 } from 'recharts';
 
@@ -20,7 +20,7 @@ const processOrderData = (orders) => {
   for (let i = 6; i >= 0; i--) {
     const d = new Date();
     d.setDate(now.getDate() - i);
-    const key = d.toISOString().split('T')[0]; 
+    const key = d.toISOString().split('T')[0];
     dailyCounts[key] = 0;
   }
 
@@ -56,70 +56,49 @@ export default function OrderAnalytics({ orders = [] }) {
   if (!stats.hasData) {
     return (
       <div className="h-[400px] flex flex-col items-center justify-center bg-slate-50/50 rounded-[2.5rem] border-2 border-dashed border-slate-100">
-         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Awaiting System Data Feed</p>
+        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Awaiting System Data Feed</p>
       </div>
     );
   }
 
   return (
-    <div className="w-full h-full animate-in fade-in duration-700">
-      <div 
-        className="w-full bg-white rounded-[2rem] border border-slate-100 p-6 print:border-none print:p-0"
-        /* CRITICAL FIX: Changed minHeight to 400px to match AdminDashboard 
-           and added position relative to anchor the chart.
-        */
-        style={{ minHeight: '400px', height: '400px', position: 'relative' }}
+    <div className="w-full h-[400px] min-h-[400px] relative">
+      {/* We use a standard Tailwind class h-[400px] AND an inline style 
+       to ensure the browser definitely knows how tall this area is.
+    */}
+      <div
+        className="w-full bg-white rounded-[2rem] border border-slate-100 p-6"
+        style={{ height: '400px', width: '100%' }}
       >
-        {isMounted && (
-          /* FIX: We use a fixed height (400) instead of "100%". 
-             This prevents the -20000px offset error.
-          */
-          <ResponsiveContainer width="100%" height={400}>
-            <LineChart 
-              data={stats.chartData} 
-              margin={{ top: 20, right: 30, left: -20, bottom: 0 }}
+        {isMounted && stats.chartData.length > 0 && (
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart
+              data={stats.chartData}
+              margin={{ top: 20, right: 30, left: 0, bottom: 20 }}
             >
-              <CartesianGrid 
-                strokeDasharray="3 3" 
-                vertical={false} 
-                stroke="#f1f5f9" 
-              />
-              
-              <XAxis 
-                dataKey="label" 
-                tick={{ fontSize: 10, fontWeight: 700, fill: '#94a3b8' }} 
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+              <XAxis
+                dataKey="label"
+                tick={{ fontSize: 10, fontWeight: 700, fill: '#94a3b8' }}
                 axisLine={false}
                 tickLine={false}
                 dy={10}
               />
-              
-              <YAxis 
+              <YAxis
                 allowDecimals={false}
-                tick={{ fontSize: 10, fontWeight: 700, fill: '#94a3b8' }} 
+                tick={{ fontSize: 10, fontWeight: 700, fill: '#94a3b8' }}
                 axisLine={false}
                 tickLine={false}
               />
-              
-              <Tooltip 
-                cursor={{ stroke: '#10b981', strokeWidth: 2, strokeDasharray: '5 5' }}
-                contentStyle={{ 
-                  borderRadius: '1.25rem', 
-                  border: 'none', 
-                  boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)',
-                  fontSize: '11px',
-                  fontWeight: 'bold',
-                  padding: '12px'
-                }}
+              <Tooltip
+                contentStyle={{ borderRadius: '1.25rem', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }}
               />
-              
-              <Line 
-                type="monotone" 
-                dataKey="count" 
-                stroke="#10b981" 
-                strokeWidth={5} 
-                dot={{ r: 6, fill: '#10b981', strokeWidth: 3, stroke: '#fff' }} 
-                activeDot={{ r: 8, strokeWidth: 0, fill: '#059669' }} 
-                animationDuration={1000}
+              <Line
+                type="monotone"
+                dataKey="count"
+                stroke="#10b981"
+                strokeWidth={5}
+                dot={{ r: 6, fill: '#10b981', strokeWidth: 3, stroke: '#fff' }}
                 isAnimationActive={true}
               />
             </LineChart>

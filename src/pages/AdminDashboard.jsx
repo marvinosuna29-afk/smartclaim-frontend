@@ -13,7 +13,7 @@ export default function AdminDashboard({ setActiveTab }) {
     officeStatus,
     toggleOfficeStatus,
     updateOrderStatusBulk,
-    printReceipt, 
+    printReceipt,
     refreshData,
     loading // Added loading from context
   } = useApp();
@@ -33,25 +33,26 @@ export default function AdminDashboard({ setActiveTab }) {
     return orders.map(o => ({
       ...o,
       status: String(o.status || 'PENDING').toUpperCase().trim(),
-      // Handle potential naming mismatches
-      itemName: (o.item_name || o.itemName || "").trim()
+      itemName: (o.item_name || o.itemName || "").trim(),
+      // 🛡️ Ensure the chart can see the date regardless of field name
+      chartDate: o.created_at || o.date || o.timestamp || o.order_date
     }));
   }, [orders]);
 
   const currentStatus = officeStatus || 'OPEN';
 
   // --- STATS LOGIC ---
-  const ordersToVerify = useMemo(() => 
+  const ordersToVerify = useMemo(() =>
     normalizedOrders.filter(o => ['AWAITING_VERIFICATION', 'VERIFYING'].includes(o.status)),
-  [normalizedOrders]);
+    [normalizedOrders]);
 
-  const activePickupQueue = useMemo(() => 
+  const activePickupQueue = useMemo(() =>
     normalizedOrders.filter(o => o.status === 'READY'),
-  [normalizedOrders]);
+    [normalizedOrders]);
 
-  const lowStockCount = useMemo(() => 
+  const lowStockCount = useMemo(() =>
     items.filter(i => Number(i.is_low_stock) === 1).length,
-  [items]);
+    [items]);
 
   const totalUnits = useMemo(() => {
     return items.reduce((acc, item) => {
@@ -83,7 +84,7 @@ export default function AdminDashboard({ setActiveTab }) {
 
   return (
     <div className="space-y-10 pb-12 text-left animate-in fade-in duration-700">
-      
+
       {/* LOADING OVERLAY */}
       {loading && (
         <div className="fixed top-4 right-4 z-50 bg-white/80 backdrop-blur p-4 rounded-3xl shadow-xl border border-slate-100 flex items-center gap-3">
@@ -144,7 +145,7 @@ export default function AdminDashboard({ setActiveTab }) {
         {/* CHART AREA - Fixed visibility check */}
         <div className="w-full mb-12 no-print bg-slate-50 rounded-[2.5rem] p-6 border border-slate-100" style={{ minHeight: '350px' }}>
           {normalizedOrders.length > 0 ? (
-             <OrderAnalytics orders={normalizedOrders} />
+            <OrderAnalytics orders={normalizedOrders} />
           ) : (
             <div className="h-[300px] flex flex-col items-center justify-center text-slate-300">
               <Database size={48} className="mb-4 opacity-20" />
@@ -168,12 +169,12 @@ export default function AdminDashboard({ setActiveTab }) {
             <tbody className="divide-y divide-slate-50">
               {items.map((item) => {
                 // Search by both Name and ID to be safe
-                const itemOrders = normalizedOrders.filter(o => 
+                const itemOrders = normalizedOrders.filter(o =>
                   o.itemName === item.name || String(o.item_id) === String(item.id)
                 );
                 const pending = itemOrders.filter(o => ['AWAITING_VERIFICATION', 'VERIFYING'].includes(o.status)).length;
                 const done = itemOrders.filter(o => ['READY', 'CLAIMED', 'COMPLETED'].includes(o.status)).length;
-                
+
                 return (
                   <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
                     <td className="px-8 py-5 font-black text-slate-900 uppercase text-xs">{item.name}</td>
@@ -208,10 +209,10 @@ export default function AdminDashboard({ setActiveTab }) {
                     <p className="font-black text-slate-900 uppercase text-sm">#{order.id}</p>
                   </div>
                   <div className="bg-white p-3 rounded-2xl shadow-sm border border-slate-100">
-                     <Package size={18} className="text-slate-400" />
+                    <Package size={18} className="text-slate-400" />
                   </div>
                 </div>
-                
+
                 <div className="space-y-3 mb-6">
                   <div className="flex justify-between text-[10px] font-bold">
                     <span className="text-slate-400 uppercase">Item:</span>
@@ -228,7 +229,7 @@ export default function AdminDashboard({ setActiveTab }) {
                   onClick={() => handleVerify(order)}
                   className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-emerald-600 transition-all flex items-center justify-center gap-2"
                 >
-                  {processingId === order.id ? <Loader2 className="animate-spin" size={14}/> : <Send size={14} />}
+                  {processingId === order.id ? <Loader2 className="animate-spin" size={14} /> : <Send size={14} />}
                   Verify & Notify
                 </button>
               </div>

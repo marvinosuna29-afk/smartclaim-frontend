@@ -70,22 +70,17 @@ export default function OrderAnalytics({ orders = [] }) {
   }
 
   return (
-    <div className="w-full h-[400px] min-h-[400px] relative">
+    <div className="w-full" style={{ position: 'relative', height: '400px', marginBottom: '20px' }}>
       <div
-        className="w-full bg-white rounded-[2rem] border border-slate-100 p-6"
-        /* We force a pixel height here so the chart CANNOT be -1 */
-        style={{ height: '400px', width: '100%', minWidth: '300px' }}
+        className="bg-white rounded-[2rem] border border-slate-100 p-6"
+        style={{ height: '100%', width: '100%', display: 'block' }}
       >
         {isMounted && stats.chartData.length > 0 && (
-          <ResponsiveContainer
-            width="100%"
-            height={350} // 🛠️ FIX: Use a number, not "100%"
-            minWidth={0}
-            key={isMounted ? "mounted" : "not-mounted"} // 🛠️ FIX: Forces re-calculation
-          >
+          /* 🛠️ FIX: We use aspect ratio + a fixed minHeight to stop the "White Screen" */
+          <ResponsiveContainer width="100%" height="100%" minHeight={300}>
             <LineChart
               data={stats.chartData}
-              margin={{ top: 20, right: 30, left: 0, bottom: 20 }}
+              margin={{ top: 20, right: 30, left: -20, bottom: 0 }}
             >
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
               <XAxis
@@ -97,6 +92,7 @@ export default function OrderAnalytics({ orders = [] }) {
               />
               <YAxis
                 allowDecimals={false}
+                domain={[0, 'auto']}
                 tick={{ fontSize: 10, fontWeight: 700, fill: '#94a3b8' }}
                 axisLine={false}
                 tickLine={false}
@@ -105,7 +101,8 @@ export default function OrderAnalytics({ orders = [] }) {
                 contentStyle={{
                   borderRadius: '1.25rem',
                   border: 'none',
-                  boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)'
+                  boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)',
+                  fontSize: '11px'
                 }}
               />
               <Line
@@ -114,7 +111,9 @@ export default function OrderAnalytics({ orders = [] }) {
                 stroke="#10b981"
                 strokeWidth={5}
                 dot={{ r: 6, fill: '#10b981', strokeWidth: 3, stroke: '#fff' }}
-                isAnimationActive={false} // Keeps it stable
+                activeDot={{ r: 8, strokeWidth: 0, fill: '#059669' }}
+                isAnimationActive={false} /* 🛠️ Keep off to ensure it renders immediately */
+                connectNulls={true}
               />
             </LineChart>
           </ResponsiveContainer>

@@ -70,92 +70,89 @@
 }
 
 /* --- PROFESSIONAL PRINT SYSTEM (A4 / OFFICE PRINTERS) --- */
+/* --- PROFESSIONAL PRINT SYSTEM (A4 / OFFICE PRINTERS) --- */
 @media print {
-  /* 1. UI PURGE: Hide everything except the report content */
-  #root, 
-  .no-print, 
+  /* 1. SELECTIVE PURGE: Hide UI chrome, but KEEP the content container */
   nav, 
   button, 
+  .no-print,
   .sidebar, 
-  .live-feed-banner {
+  .live-feed-banner,
+  aside,
+  header {
     display: none !important;
   }
 
-  body {
+  /* 2. RESET BODY & ROOT for Print Layout */
+  body, html {
     background: white !important;
     margin: 0 !important;
     padding: 0 !important;
+    width: 100% !important;
+    height: auto !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
 
-  /* 2. THE AUDIT CONTAINER */
-  .clean-audit-report {
+  /* Ensure the React Root stays visible but removes constraints */
+  #root {
     display: block !important;
+    margin: 0 !important;
+    padding: 0 !important;
     width: 100% !important;
-    padding: 2cm !important;
-    background: white !important;
   }
 
-  /* Header with Sharp Branding */
-  .report-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    border-bottom: 2px solid #0f172a;
-    padding-bottom: 1.5rem;
-    margin-bottom: 2rem;
-  }
-
-  .report-main-title {
-    font-size: 28pt;
-    font-weight: 800;
-    letter-spacing: -1px;
-    color: #0f172a;
-  }
-
-  /* Charts in Print: High Contrast */
-  .chart-focus {
+  /* 3. AUDIT REPORT STYLING */
+  /* This targets the <section> in your AdminDashboard */
+  section {
+    border: none !important;
+    box-shadow: none !important;
+    margin: 0 !important;
+    padding: 1cm !important;
     width: 100% !important;
-    height: 350px !important;
-    margin: 2rem 0;
-    page-break-inside: avoid;
+    page-break-after: always;
   }
 
-  /* Table: Clean and Readable */
-  .report-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 1rem;
+  /* Force the Table to be high-contrast and full width */
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    border: 1px solid #e2e8f0 !important;
   }
 
-  .report-table th {
-    background: #f8fafc !important;
-    border-bottom: 2px solid #e2e8f0;
-    padding: 12px;
-    font-size: 10pt;
-    text-transform: uppercase;
-    font-weight: 800;
+  th {
+    background-color: #f8fafc !important;
+    color: #0f172a !important;
+    border-bottom: 2px solid #0f172a !important;
+    font-weight: 800 !important;
+    text-transform: uppercase !important;
+    padding: 12px !important;
   }
 
-  .report-table td {
-    border-bottom: 1px solid #f1f5f9;
-    padding: 12px;
-    font-size: 11pt;
+  td {
+    border-bottom: 1px solid #f1f5f9 !important;
+    padding: 12px !important;
+    color: #000 !important;
   }
 
-  /* Footer for Authenticity */
-  .report-footer {
-    margin-top: 4rem;
-    padding-top: 1rem;
-    border-top: 1px solid #e2e8f0;
-    text-align: center;
-    font-size: 9pt;
-    color: #64748b;
+  /* Keep the Chart visible if needed, or hide it to save toner */
+  .recharts-wrapper {
+    margin: 20px auto !important;
+    page-break-inside: avoid !important;
   }
 
+  /* Branding for the printed page */
+  h3 {
+    color: #0f172a !important;
+    font-size: 24pt !important;
+    margin-bottom: 0.5cm !important;
+    border-bottom: 2px solid #10b981 !important;
+    display: inline-block !important;
+  }
+
+  /* 4. PAGE SETUP */
   @page {
     size: A4 portrait;
-    margin: 0; /* Managed by .clean-audit-report padding */
+    margin: 1.5cm;
   }
 }

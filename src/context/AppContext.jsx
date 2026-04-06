@@ -125,8 +125,8 @@ export const AppProvider = ({ children }) => {
     return {
       refreshOrders: refreshData,
       fetchOrders: refreshData,
-      syncStats: refreshData,
-      fetchStats: refreshData,
+      syncStats: () => refreshData(),
+      fetchStats: () => refreshData(),
       setUser: (userData) => {
         if (userData) localStorage.setItem('app_user', JSON.stringify(userData));
         else { localStorage.removeItem('app_user'); localStorage.removeItem('token'); }
@@ -219,10 +219,10 @@ export const AppProvider = ({ children }) => {
           let sO = r.data.order || r.data;
           sO = { ...sO, user_id: sO.user_id || stableUserId, status: (sO.status || 'PENDING').toUpperCase() };
           setOrders(prev => prev.some(o => String(o.id) === String(sO.id)) ? prev : [sO, ...prev]);
-          
+
           // 🚀 SYNC FIX: Immediately pull new MySQL IDs to prevent "Submission Failed"
-          await refreshData(); 
-          
+          await refreshData();
+
           return { success: true, orderId: sO.id };
         }
         return { success: false, message: r.data?.message || "Failed" };
@@ -336,15 +336,25 @@ export const AppProvider = ({ children }) => {
     const heartbeat = setInterval(() => {
       console.log("💓 Background Syncing with Aiven...");
       refreshData();
-    }, 30000); 
+    }, 30000);
     return () => clearInterval(heartbeat);
   }, [stableUserId, refreshData]);
 
   return (
     <AppContext.Provider value={{
+      // 1. State
       user, users, items, orders, announcements, officeStatus, loading, privateAlert,
-      currentQueue, readyOrders, refreshUser, currentServingId, myOrders,
-      refreshOrders: refreshData, fetchOrders: refreshData, fetchStats: refreshData, syncStats: refreshData, refreshData,
+      currentQueue, readyOrders, currentServingId, myOrders,
+
+      // 2. Explicit Functions (Don't rely on the 'actions' spread for these)
+      refreshUser,
+      refreshData,
+      refreshOrders: refreshData,
+      fetchOrders: refreshData,
+      fetchStats: refreshData,
+      syncStats: refreshData,
+
+      // 3. Spreading the rest of the actions
       ...actions
     }}>
       {children}

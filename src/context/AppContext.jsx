@@ -292,9 +292,12 @@ export const AppProvider = ({ children }) => {
       printReceipt: async (order) => {
         if (!order) return;
 
+        // 🛡️ Pull the specific variable from your Render Environment
+        const DISCORD_RECEIPT_WEBHOOK = import.meta.env.VITE_DISCORD_RECEIPT_WEBHOOK;
+
         // 🛡️ Guard: Check if Render has the webhook configured
         if (!DISCORD_RECEIPT_WEBHOOK) {
-          console.error("Discord Webhook not found in Render Environment Variables.");
+          console.error("VITE_DISCORD_RECEIPT_WEBHOOK not found in Render Environment Variables.");
           alert("E-Receipt Error: Webhook not configured. Printing manually...");
           window.print();
           return;
@@ -303,11 +306,12 @@ export const AppProvider = ({ children }) => {
         const receiptData = {
           embeds: [{
             title: "📄 Official Digital Receipt",
-            description: `**${order.full_name || "Student"}** has successfully claimed their item.`,
-            color: 0x10b981,
+            // Normalized data to handle different naming conventions (snake_case vs camelCase)
+            description: `**${order.full_name || order.fullName || "Student"}** has successfully claimed their item.`,
+            color: 0x10b981, // Emerald Green
             fields: [
               { name: "Order ID", value: `#${order.id}`, inline: true },
-              { name: "Item", value: order.item_name || order.itemName, inline: true },
+              { name: "Item", value: order.item_name || order.itemName || "Unknown Item", inline: true },
               { name: "Size", value: order.size || "Standard", inline: true },
               { name: "Date/Time", value: new Date().toLocaleString(), inline: false }
             ],
@@ -323,8 +327,11 @@ export const AppProvider = ({ children }) => {
           });
 
           if (res.ok) {
-            alert("✅ Digital Receipt sent to Discord!");
+            // Small console log instead of alert for better UX (optional)
+            console.log("✅ Digital Receipt sent to Discord!");
           } else {
+            const errorData = await res.json();
+            console.error("Discord API Error:", errorData);
             throw new Error("Discord API rejected the request");
           }
         } catch (err) {

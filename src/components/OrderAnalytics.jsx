@@ -70,55 +70,45 @@ export default function OrderAnalytics({ orders = [] }) {
   }
 
   return (
-    <div className="w-full" style={{ position: 'relative', height: '400px', marginBottom: '20px' }}>
-      <div
-        className="bg-white rounded-[2rem] border border-slate-100 p-6"
-        style={{ height: '100%', width: '100%', display: 'block' }}
-      >
-        {isMounted && stats.chartData.length > 0 && (
-          /* 🛠️ FIX: We use aspect ratio + a fixed minHeight to stop the "White Screen" */
-          <ResponsiveContainer width="100%" height="100%" minHeight={300}>
-            <LineChart
-              data={stats.chartData}
-              margin={{ top: 20, right: 30, left: -20, bottom: 0 }}
-            >
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-              <XAxis
-                dataKey="label"
-                tick={{ fontSize: 10, fontWeight: 700, fill: '#94a3b8' }}
-                axisLine={false}
-                tickLine={false}
-                dy={10}
-              />
-              <YAxis
-                allowDecimals={false}
-                domain={[0, 'auto']}
-                tick={{ fontSize: 10, fontWeight: 700, fill: '#94a3b8' }}
-                axisLine={false}
-                tickLine={false}
-              />
-              <Tooltip
-                contentStyle={{
-                  borderRadius: '1.25rem',
-                  border: 'none',
-                  boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)',
-                  fontSize: '11px'
-                }}
-              />
-              <Line
-                type="monotone"
-                dataKey="count"
-                stroke="#10b981"
-                strokeWidth={5}
-                dot={{ r: 6, fill: '#10b981', strokeWidth: 3, stroke: '#fff' }}
-                activeDot={{ r: 8, strokeWidth: 0, fill: '#059669' }}
-                isAnimationActive={false} /* 🛠️ Keep off to ensure it renders immediately */
-                connectNulls={true}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        )}
-      </div>
+    <div className="w-full bg-white rounded-[2rem] border border-slate-100 p-6 flex justify-center items-center" style={{ minHeight: '400px' }}>
+      {isMounted && (
+        /* 🛠️ THE CIRCUIT BREAKER: 
+           We specify a fixed width (800) and height (350). 
+           If the chart appears now, we know the issue was the ResponsiveContainer 
+           failing to measure your dashboard layout.
+        */
+        <LineChart
+          width={800}
+          height={350}
+          data={stats.chartData}
+          margin={{ top: 20, right: 30, left: -20, bottom: 20 }}
+        >
+          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+          <XAxis
+            dataKey="label"
+            tick={{ fontSize: 10, fontWeight: 700, fill: '#94a3b8' }}
+            axisLine={false}
+            tickLine={false}
+          />
+          <YAxis
+            allowDecimals={false}
+            tick={{ fontSize: 10, fontWeight: 700, fill: '#94a3b8' }}
+            axisLine={false}
+            tickLine={false}
+          />
+          <Tooltip
+            contentStyle={{ borderRadius: '1.25rem', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }}
+          />
+          <Line
+            type="monotone"
+            dataKey="count"
+            stroke="#10b981"
+            strokeWidth={5}
+            dot={{ r: 6, fill: '#10b981', strokeWidth: 3, stroke: '#fff' }}
+            isAnimationActive={false}
+          />
+        </LineChart>
+      )}
     </div>
   );
 }

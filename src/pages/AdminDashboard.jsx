@@ -81,6 +81,7 @@ export default function AdminDashboard({ setActiveTab }) {
       setProcessingId(null);
     }
   };
+  console.log("Chart Input:", orders[0])
 
   return (
     <div className="space-y-10 pb-12 text-left animate-in fade-in duration-700">
@@ -143,7 +144,8 @@ export default function AdminDashboard({ setActiveTab }) {
         </div>
 
         {/* CHART AREA - Fixed visibility check */}
-        <div className="w-full mb-12 no-print bg-slate-50 rounded-[2.5rem] p-6 border border-slate-100" style={{ minHeight: '350px' }}>
+        <div className="w-full mb-12 no-print bg-slate-50 rounded-[2.5rem] p-6 border border-slate-100 block"
+          style={{ height: '400px', minHeight: '400px', position: 'relative' }}>
           {normalizedOrders.length > 0 ? (
             <OrderAnalytics orders={normalizedOrders} />
           ) : (

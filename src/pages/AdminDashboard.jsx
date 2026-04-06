@@ -30,13 +30,16 @@ export default function AdminDashboard({ setActiveTab }) {
   // 2. DATA NORMALIZATION
   const normalizedOrders = useMemo(() => {
     return orders.map(o => {
-      // Ensure we have a valid date string
-      const rawDate = o.created_at || o.date || new Date().toISOString();
+      // Fallback chain: created_at -> date -> chartDate -> Current Time
+      const rawDate = o.created_at || o.date || o.chartDate || new Date().toISOString();
+
       return {
         ...o,
         status: String(o.status || 'PENDING').toUpperCase().trim(),
         itemName: (o.item_name || o.itemName || "").trim(),
-        chartDate: rawDate // Guaranteed string
+        // Ensure both keys exist so OrderAnalytics is guaranteed to find it
+        created_at: rawDate,
+        chartDate: rawDate
       };
     });
   }, [orders]);

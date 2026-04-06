@@ -3,53 +3,49 @@ import { XAxis, YAxis, CartesianGrid, Tooltip, LineChart, Line, ResponsiveContai
 
 /**
  * 🛠️ DATA PROCESSING LOGIC
- * Fixed scoping and stabilized date matching using Local Time.
+ * Uses en-CA locale for a reliable YYYY-MM-DD match across timezones.
  */
 const processOrderData = (orders) => {
   const safeOrders = Array.isArray(orders) ? orders : [];
   const dailyCounts = {};
   const now = new Date();
 
-  // 1. Initialize the last 7 days with 0 using Local Date strings
+  // 1. Initialize the last 7 days with 0 (Standardized YYYY-MM-DD)
   for (let i = 6; i >= 0; i--) {
     const d = new Date();
     d.setDate(now.getDate() - i);
-
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    const label = `${year}-${month}-${day}`;
-    dailyCounts[label] = 0;
+    // 'en-CA' always returns YYYY-MM-DD
+    const dateKey = d.toLocaleDateString('en-CA'); 
+    dailyCounts[dateKey] = 0;
   }
 
-  // 2. Map orders to those 7 days
+  // 2. Map orders to those days
   safeOrders.forEach(o => {
-    // Look for our newly normalized 'chartDate' first
-    const dateSrc = o.chartDate || o.created_at || o.date;
+    // Your console log showed 'created_at', so we prioritize that
+    const dateSrc = o.created_at || o.chartDate || o.date;
     if (!dateSrc) return;
 
     const dateObj = new Date(dateSrc);
     if (isNaN(dateObj)) return;
 
-    const year = dateObj.getFullYear();
-    const month = String(dateObj.getMonth() + 1).padStart(2, '0');
-    const day = String(dateObj.getDate()).padStart(2, '0');
-    const dateKey = `${year}-${month}-${day}`;
+    // Convert the order's date to the same YYYY-MM-DD format
+    const orderKey = dateObj.toLocaleDateString('en-CA');
 
-    if (Object.prototype.hasOwnProperty.call(dailyCounts, dateKey)) {
-      dailyCounts[dateKey] += 1;
+    if (Object.prototype.hasOwnProperty.call(dailyCounts, orderKey)) {
+      dailyCounts[orderKey] += 1;
     }
   });
 
-  // 3. Convert to Chart Format (Correctly defining the variables before returning)
+  // 3. Convert to Chart Format
   const formattedChartData = Object.keys(dailyCounts).sort().map(key => ({
     fullDate: key,
+    // Display label as "Apr 6"
     label: new Date(key).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
     count: dailyCounts[key]
   }));
 
-  // Get today's specific count for the return
-  const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  // Match today's key for the summary count
+  const todayKey = now.toLocaleDateString('en-CA');
   const countToday = dailyCounts[todayKey] || 0;
 
   return {
@@ -62,12 +58,14 @@ const processOrderData = (orders) => {
 export default function OrderAnalytics({ orders = [] }) {
   const [isMounted, setIsMounted] = useState(false);
 
+  // Memoize to prevent jittery chart re-renders
   const stats = useMemo(() => processOrderData(orders), [orders]);
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
+  // Show "Awaiting Feed" only if there are strictly zero orders
   if (!stats.hasData) {
     return (
       <div className="h-[300px] flex flex-col items-center justify-center bg-slate-50/50 rounded-[2.5rem] border-2 border-dashed border-slate-100">
@@ -80,7 +78,7 @@ export default function OrderAnalytics({ orders = [] }) {
     <div className="w-full h-full animate-in fade-in duration-500">
       <div
         className="w-full bg-white rounded-[2rem] border border-slate-100 p-6 print:border-none print:p-0"
-        style={{ height: '100%', minHeight: '300px' }}
+        style={{ height: '100%', minHeight: '350px' }}
       >
         {isMounted && (
           <ResponsiveContainer width="100%" height="100%">
@@ -90,7 +88,7 @@ export default function OrderAnalytics({ orders = [] }) {
             >
               <defs>
                 <linearGradient id="lineGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#10b981" stopOpacity={0.1} />
+                  <stop offset="5%" stopColor="#10b981" stopOpacity={0.2} />
                   <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
                 </linearGradient>
               </defs>
@@ -103,7 +101,7 @@ export default function OrderAnalytics({ orders = [] }) {
                 dy={10}
               />
               <YAxis
-                allowDecimals={false} // Clean y-axis for whole numbers
+                allowDecimals={false}
                 tick={{ fontSize: 10, fontWeight: 700, fill: '#94a3b8' }}
                 axisLine={false}
                 tickLine={false}
@@ -120,13 +118,14 @@ export default function OrderAnalytics({ orders = [] }) {
                 }}
               />
               <Line
-                type="monotone" // Smoother and more reliable than bundle
+                type="monotone"
                 dataKey="count"
                 stroke="#10b981"
                 strokeWidth={5}
                 dot={{ r: 6, fill: '#10b981', strokeWidth: 3, stroke: '#fff' }}
                 activeDot={{ r: 8, strokeWidth: 0, fill: '#059669' }}
                 animationDuration={1500}
+                fill="url(#lineGradient)"
               />
             </LineChart>
           </ResponsiveContainer>

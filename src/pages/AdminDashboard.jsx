@@ -34,8 +34,8 @@ export default function AdminDashboard({ setActiveTab }) {
       ...o,
       status: String(o.status || 'PENDING').toUpperCase().trim(),
       itemName: (o.item_name || o.itemName || "").trim(),
-      // 🛡️ Ensure the chart can see the date regardless of field name
-      chartDate: o.created_at || o.date || o.timestamp || o.order_date
+      // Force a clean date string for the chart to consume
+      chartDate: o.created_at || o.date
     }));
   }, [orders]);
 

@@ -1,4 +1,4 @@
-// Version 1.2.2 - Production Error #310 & Scope Fix (Final)
+// Version 1.2.3 - Fixed Cross-Device Sync & Immediate Submission
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { io } from 'socket.io-client';
 
@@ -113,31 +113,20 @@ export const AppProvider = ({ children }) => {
 
   // --- 4. ACTIONS ---
   const actions = useMemo(() => {
-    // We define the stock logic as a local constant first to avoid circular reference crashes
     const updateStockLogic = async (itemId, size = 'default', delta = 0) => {
-      const r = await api('/api/items/update-stock', 'PATCH', {
-        itemId,
-        size,
-        delta,
-        adminId: stableUserId
-      });
-
+      const r = await api('/api/items/update-stock', 'PATCH', { itemId, size, delta, adminId: stableUserId });
       if (r.ok) {
-        setItems(prev => prev.map(item =>
-          String(item.id) === String(itemId) ? { ...item, sizes: r.data.sizes } : item
-        ));
+        setItems(prev => prev.map(item => String(item.id) === String(itemId) ? { ...item, sizes: r.data.sizes } : item));
         return { success: true };
       }
       return { success: false, message: r.data?.message || "Stock update failed" };
     };
 
     return {
-      // Logic Aliases (Fixes production 'l is not a function' error)
       refreshOrders: refreshData,
       fetchOrders: refreshData,
       syncStats: refreshData,
       fetchStats: refreshData,
-
       setUser: (userData) => {
         if (userData) localStorage.setItem('app_user', JSON.stringify(userData));
         else { localStorage.removeItem('app_user'); localStorage.removeItem('token'); }
@@ -147,9 +136,7 @@ export const AppProvider = ({ children }) => {
         const r = await api('/api/auth/register', 'POST', studentData);
         if (r.ok) {
           const uRes = await api(`/api/admin/users?adminId=${stableUserId}`);
-          if (uRes.ok && Array.isArray(uRes.data)) {
-            setUsers(uRes.data.map(normalizeUser));
-          }
+          if (uRes.ok && Array.isArray(uRes.data)) setUsers(uRes.data.map(normalizeUser));
           return { success: true };
         }
         return { success: false, message: r.data?.message || "Registration failed" };
@@ -187,9 +174,7 @@ export const AppProvider = ({ children }) => {
             const normalized = normalizeUser(r.data.user);
             localStorage.setItem('app_user', JSON.stringify(normalized));
             setUserState(normalized);
-          } else {
-            refreshData();
-          }
+          } else { refreshData(); }
           return { success: true };
         }
         return { success: false, message: r.data?.message || "Verification failed" };
@@ -218,10 +203,8 @@ export const AppProvider = ({ children }) => {
         if (r.ok) { setItems(prev => prev.filter(item => item.id !== id)); return { success: true }; }
         return { success: false };
       },
-      // Using the local constant to point both function names to the same logic
       updateItemStock: updateStockLogic,
       updateStock: updateStockLogic,
-
       toggleLowStock: async (itemId) => {
         const r = await api('/api/items/toggle-low-stock', 'PATCH', { itemId, adminId: stableUserId });
         if (r.ok) {
@@ -236,52 +219,33 @@ export const AppProvider = ({ children }) => {
           let sO = r.data.order || r.data;
           sO = { ...sO, user_id: sO.user_id || stableUserId, status: (sO.status || 'PENDING').toUpperCase() };
           setOrders(prev => prev.some(o => String(o.id) === String(sO.id)) ? prev : [sO, ...prev]);
+          
+          // 🚀 SYNC FIX: Immediately pull new MySQL IDs to prevent "Submission Failed"
+          await refreshData(); 
+          
           return { success: true, orderId: sO.id };
         }
         return { success: false, message: r.data?.message || "Failed" };
       },
       submitReceipt: async (id, referenceNumber) => {
-        // 1. Trace the incoming data
         console.log("🛠️ Submitting Receipt for ID:", id, "Ref:", referenceNumber);
-
-        // 2. Handle potential ID naming mismatches from the UI
-        const targetId = id;
-
-        if (!targetId) {
-          console.error("❌ Submit failed: No ID provided to the function.");
-          return { success: false, error: "Order ID is missing." };
-        }
+        if (!id) return { success: false, error: "Order ID is missing." };
 
         try {
           const res = await api('/api/orders/status-update', 'POST', {
-            ids: [targetId], // Backend expects an array
+            ids: [id],
             status: 'AWAITING_VERIFICATION',
-            receipt_url: referenceNumber, // We saw this is the text column in your DB
+            receipt_url: referenceNumber,
             userId: stableUserId
           });
-
-          // 3. Robust Response Check
-          // If 'api' returns the raw fetch Response, use res.ok. 
-          // If it returns parsed JSON, check for a success flag.
           const isSuccess = res && (res.ok || res.success || res.status === 200);
-
           if (isSuccess) {
-            console.log("✅ Submission Successful!");
-            if (typeof refreshData === 'function') {
-              await refreshData();
-            }
+            await refreshData();
             return { success: true };
           }
-
-          // 4. Handle Server Rejection (e.g., 404, 500)
-          const errorMsg = res?.message || "Server rejected the update.";
-          console.error("⚠️ Server Error:", errorMsg);
-          return { success: false, error: errorMsg };
-
+          return { success: false, error: res?.message || "Server rejected update" };
         } catch (err) {
-          // 5. Handle Network/Connection Failures
-          console.error("🚨 Network/Connection Error:", err);
-          return { success: false, error: "Connection issue. Please try again." };
+          return { success: false, error: "Connection issue." };
         }
       },
       processScanClaim: async (orderIds, adminId) => {
@@ -301,9 +265,7 @@ export const AppProvider = ({ children }) => {
       updateOrderStatusBulk: async (ids, status) => {
         const normalizedIds = Array.isArray(ids) ? ids.map(id => String(id)) : [String(ids)];
         const upperStatus = status.toUpperCase();
-        const r = await api('/api/orders/status-update', 'POST', {
-          ids: normalizedIds, status: upperStatus, adminId: stableUserId
-        });
+        const r = await api('/api/orders/status-update', 'POST', { ids: normalizedIds, status: upperStatus, adminId: stableUserId });
         if (r.ok) {
           setOrders(prev => prev.map(o => normalizedIds.includes(String(o.id)) ? { ...o, status: upperStatus } : o));
           setTimeout(() => refreshData(), 500);
@@ -311,10 +273,7 @@ export const AppProvider = ({ children }) => {
         }
         return { success: false, error: r.data?.message || "Server Error" };
       },
-      printReceipt: (order) => {
-        if (!order) return;
-        window.print();
-      },
+      printReceipt: (order) => { if (order) window.print(); },
       addAnnouncement: async (msg, expires_at) => {
         const r = await api('/api/announcements', 'POST', { content: msg, type: 'info', expires_at, adminId: stableUserId });
         return r.ok ? { success: true } : { success: false };
@@ -347,6 +306,7 @@ export const AppProvider = ({ children }) => {
   useEffect(() => { localStorage.setItem('app_orders', JSON.stringify(orders)); }, [orders]);
   useEffect(() => { if (currentServingId) localStorage.setItem('app_serving_id', String(currentServingId)); }, [currentServingId]);
 
+  // SOCKETS
   useEffect(() => {
     if (!stableUserId) return;
     const handleQueue = (d) => setCurrentServingId(String(d.currentNumber || d.nextId || "0"));
@@ -360,25 +320,31 @@ export const AppProvider = ({ children }) => {
     socket.on('order_updated', handleOrderUpdated);
     socket.on('office_status_updated', setOfficeStatus);
     return () => {
-      socket.off('queue_updated');
-      socket.off('order_updated');
-      socket.off('office_status_updated');
+      socket.off('queue_updated'); socket.off('order_updated'); socket.off('office_status_updated');
     };
   }, [stableUserId]);
 
+  // INITIAL FETCH
   useEffect(() => {
     if (stableUserId && items.length === 0) refreshData();
   }, [stableUserId, items.length, refreshData]);
+
+  // 💓 BACKGROUND HEARTBEAT (New)
+  // Keeps Phone and Laptop in sync even if WebSockets disconnect
+  useEffect(() => {
+    if (!stableUserId) return;
+    const heartbeat = setInterval(() => {
+      console.log("💓 Background Syncing with Aiven...");
+      refreshData();
+    }, 30000); 
+    return () => clearInterval(heartbeat);
+  }, [stableUserId, refreshData]);
 
   return (
     <AppContext.Provider value={{
       user, users, items, orders, announcements, officeStatus, loading, privateAlert,
       currentQueue, readyOrders, refreshUser, currentServingId, myOrders,
-      refreshOrders: refreshData,
-      fetchOrders: refreshData,
-      fetchStats: refreshData,
-      syncStats: refreshData,
-      refreshData,
+      refreshOrders: refreshData, fetchOrders: refreshData, fetchStats: refreshData, syncStats: refreshData, refreshData,
       ...actions
     }}>
       {children}

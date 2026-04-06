@@ -2,7 +2,8 @@ import React, { useMemo, useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import {
   Package, Clock, AlertTriangle, Hash,
-  CheckCircle, Power, Info, TrendingUp, Send, Loader2, Database
+  CheckCircle, Power, Info, TrendingUp, Send, Loader2, Database, Camera,
+  Image as ImageIcon // <--- Add this alias here
 } from 'lucide-react';
 import OrderAnalytics from '../components/OrderAnalytics';
 

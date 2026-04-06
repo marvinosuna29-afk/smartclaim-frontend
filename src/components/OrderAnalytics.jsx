@@ -43,9 +43,6 @@ const processOrderData = (orders) => {
     count: dailyCounts[key]
   }));
 
-  // DEBUG: Check your console!
-  console.log("--- CHART DEBUG ---");
-  console.table(formattedData);
 
   return {
     chartData: formattedData,

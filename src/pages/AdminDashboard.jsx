@@ -84,47 +84,124 @@ export default function AdminDashboard({ setActiveTab }) {
   return (
     <div className="space-y-6 md:space-y-10 pb-12 text-left animate-in fade-in duration-700 px-2 md:px-0">
 
-      {loading && (
-        <div className="fixed top-4 right-4 z-50 bg-white/80 backdrop-blur p-4 rounded-3xl shadow-xl border border-slate-100 flex items-center gap-3 no-print">
-          <Loader2 className="animate-spin text-emerald-500" size={18} />
-          <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">Syncing...</span>
-        </div>
-      )}
-
-      {/* HEADER SECTION - RESPONSIVE TWEAKS */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 md:gap-6 items-stretch no-print">
-        <div className="lg:col-span-8 bg-slate-950 p-6 md:p-12 rounded-[2.5rem] md:rounded-[3.5rem] text-white shadow-2xl flex flex-col xl:flex-row items-center justify-between gap-6 md:gap-8 relative overflow-hidden text-center md:text-left">
-          <div className="relative z-10">
-            <div className="flex items-center justify-center md:justify-start gap-3 mb-2 md:mb-4">
-              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
-              <span className="text-[8px] md:text-[10px] font-black uppercase tracking-[0.4em] text-emerald-400">Inventory Intelligence</span>
-            </div>
-            <h2 className="text-3xl md:text-5xl font-black uppercase tracking-tighter leading-tight">
-              Ready <br className="hidden md:block" /><span className="text-emerald-500">Pickups</span>
-            </h2>
-          </div>
-          <div className="bg-white/5 border border-white/10 p-6 md:p-10 rounded-[2.5rem] md:rounded-[4rem] text-center min-w-[140px] md:min-w-[220px] z-10">
-            <span className="text-6xl md:text-9xl font-black tracking-tighter text-white">
-              {String(activePickupQueue.length).padStart(3, '0')}
-            </span>
-          </div>
+      {/* 1. RESTORED: PENDING APPROVAL SECTION (The "Reference Number" fix) */}
+      <section className="no-print bg-white border border-slate-100 rounded-[2.5rem] md:rounded-[3.5rem] p-6 md:p-10 shadow-sm">
+        <div className="flex items-center justify-between mb-8">
+          <h3 className="text-xl md:text-2xl font-black text-slate-900 uppercase tracking-tighter flex items-center gap-2">
+            <AlertTriangle className="text-amber-500" /> Pending Verification
+          </h3>
+          <span className="bg-amber-100 text-amber-700 px-4 py-1 rounded-full text-[10px] font-black uppercase">
+            {ordersToVerify.length} Awaiting
+          </span>
         </div>
 
-        <div className={`lg:col-span-4 p-6 md:p-8 rounded-[2.5rem] md:rounded-[3.5rem] border-2 transition-all flex flex-row lg:flex-col justify-between items-center lg:items-start ${currentStatus === 'OPEN' ? 'bg-white border-emerald-100' : 'bg-red-50 border-red-200'}`}>
-          <div className="flex flex-col lg:flex-row lg:justify-between lg:w-full lg:items-start items-center">
-            <div className={`p-3 md:p-4 rounded-xl md:rounded-2xl mb-0 lg:mb-4 ${currentStatus === 'OPEN' ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}`}>
-              <Power size={24} md:size={28} />
-            </div>
-            <button onClick={() => toggleOfficeStatus(currentStatus === 'OPEN' ? 'CLOSED' : 'OPEN')} className={`px-4 py-2 rounded-full text-[8px] md:text-[10px] font-black uppercase tracking-widest ${currentStatus === 'OPEN' ? 'bg-emerald-900 text-white' : 'bg-red-600 text-white'}`}>
-              {currentStatus}
-            </button>
+        {ordersToVerify.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+            {ordersToVerify.map(order => (
+              <div key={order.id} className="bg-slate-50 p-6 rounded-[2.5rem] border border-slate-100 group hover:border-emerald-300 transition-all">
+                <div className="flex justify-between items-start mb-6">
+                  <div>
+                    <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-1">Order Ref</p>
+                    <p className="font-black text-slate-900 uppercase text-sm">#{order.id}</p>
+                  </div>
+                  <div className="bg-white p-3 rounded-2xl shadow-sm border border-slate-100 font-mono text-[10px] font-bold text-slate-400">
+                    {new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </div>
+                </div>
+
+                <div className="space-y-3 mb-6">
+                  <div className="flex justify-between text-[10px] font-bold">
+                    <span className="text-slate-400 uppercase">Item:</span>
+                    <span className="text-slate-900 uppercase">{order.itemName}</span>
+                  </div>
+                  {/* REFERENCE NUMBER / RECEIPT BOX */}
+                  <div className="bg-white p-4 rounded-2xl border border-slate-200">
+                    <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Proof of Payment</p>
+                    <p className="text-xs font-mono font-bold text-indigo-600 truncate">{order.receipt_url || "MANUAL_ENTRY_REQUIRED"}</p>
+                  </div>
+                </div>
+
+                <button
+                  disabled={processingId === order.id}
+                  onClick={() => handleVerify(order)}
+                  className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-emerald-600 transition-all flex items-center justify-center gap-2"
+                >
+                  {processingId === order.id ? <Loader2 className="animate-spin" size={14} /> : <Send size={14} />}
+                  Approve Reference
+                </button>
+              </div>
+            ))}
           </div>
-          <div className="text-right lg:text-left">
-            <h4 className="text-[8px] md:text-[10px] font-black uppercase text-slate-800 tracking-widest">Office Control</h4>
-            <p className="text-[9px] md:text-[11px] font-bold text-slate-400 uppercase">Gatekeeper</p>
+        ) : (
+          <div className="py-12 text-center bg-slate-50 rounded-[2.5rem] border-2 border-dashed border-slate-200">
+            <CheckCircle className="mx-auto text-emerald-300 mb-2" size={32} />
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">All Clear</p>
           </div>
+        )}
+      </section>
+
+      {/* 2. UPDATED: AUDIT TABLE WITH PRODUCT IMAGES */}
+      <section className="bg-white border border-slate-100 rounded-[2.5rem] md:rounded-[3.5rem] p-6 md:p-10 shadow-sm no-print">
+        <h3 className="text-xl md:text-2xl font-black text-slate-900 uppercase tracking-tighter flex items-center gap-2 mb-8">
+          <Package className="text-emerald-500" /> Inventory Catalog
+        </h3>
+
+        <div className="overflow-x-auto rounded-[1.5rem] md:rounded-[2.5rem] border border-slate-100 no-scrollbar">
+          <table className="w-full text-left border-collapse min-w-[700px]">
+            <thead>
+              <tr className="bg-slate-50 text-[9px] md:text-[10px] font-black uppercase text-slate-400 tracking-widest">
+                <th className="px-6 py-5">Product</th>
+                <th className="px-6 py-5 text-center">In Verification</th>
+                <th className="px-6 py-5 text-center">Fulfilled</th>
+                <th className="px-6 py-5 text-right">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              {items.map((item) => (
+                <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-4">
+                      {/* PRODUCT IMAGE SLOT */}
+                      <div className="relative group w-12 h-12 bg-slate-100 rounded-xl overflow-hidden flex items-center justify-center border border-slate-200">
+                        {item.image_url ? (
+                          <img src={item.image_url} alt={item.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <ImageIcon size={20} className="text-slate-300" />
+                        )}
+                        {/* Hidden File Input Trigger */}
+                        <label className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer">
+                          <Camera size={16} className="text-white" />
+                          <input
+                            type="file"
+                            className="hidden"
+                            accept="image/*"
+                            onChange={(e) => handleImageChange(e, item.id)}
+                          />
+                        </label>
+                      </div>
+                      <div>
+                        <p className="font-black text-slate-900 uppercase text-xs">{item.name}</p>
+                        <p className="text-[9px] font-bold text-slate-400 uppercase">UID: {item.id}</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 text-center font-bold text-amber-500">
+                    {normalizedOrders.filter(o => (o.itemName === item.name || String(o.item_id) === String(item.id)) && ['AWAITING_VERIFICATION', 'VERIFYING'].includes(o.status)).length}
+                  </td>
+                  <td className="px-6 py-4 text-center font-bold text-emerald-500">
+                    {normalizedOrders.filter(o => (o.itemName === item.name || String(o.item_id) === String(item.id)) && ['READY', 'CLAIMED', 'COMPLETED'].includes(o.status)).length}
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    <span className={`text-[8px] font-black px-2 py-1 rounded-full ${item.is_low_stock == 1 ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-600'}`}>
+                      {item.is_low_stock == 1 ? 'LOW STOCK' : 'OPTIMAL'}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-      </div>
+      </section>
 
       {/* ANALYTICS - SCROLLABLE TABLE ON MOBILE */}
       <section className="bg-white border border-slate-100 rounded-[2.5rem] md:rounded-[3.5rem] p-6 md:p-10 shadow-sm relative no-print">

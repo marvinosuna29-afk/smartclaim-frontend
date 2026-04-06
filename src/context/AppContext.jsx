@@ -16,10 +16,7 @@ export const AppProvider = ({ children }) => {
 
   const [users, setUsers] = useState([]);
   const [items, setItems] = useState([]);
-  const [orders, setOrders] = useState(() => {
-    const saved = localStorage.getItem('app_orders');
-    try { return saved ? JSON.parse(saved) : []; } catch (e) { return []; }
-  });
+  const [orders, setOrders] = useState([]); // Start fresh every time
   const [announcements, setAnnouncements] = useState([]);
   const [officeStatus, setOfficeStatus] = useState('OPEN');
   const [loading, setLoading] = useState(false);
@@ -365,7 +362,6 @@ export const AppProvider = ({ children }) => {
   }, [orders, stableUserId]);
 
   // --- 6. EFFECTS ---
-  useEffect(() => { localStorage.setItem('app_orders', JSON.stringify(orders)); }, [orders]);
   useEffect(() => { if (currentServingId) localStorage.setItem('app_serving_id', String(currentServingId)); }, [currentServingId]);
 
   // SOCKETS

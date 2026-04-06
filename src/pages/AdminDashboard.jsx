@@ -48,11 +48,14 @@ export default function AdminDashboard({ setActiveTab }) {
   }, [orders]);
 
   const activePickupQueue = useMemo(() => {
-    if (!orders) return [];
+    if (!orders || !Array.isArray(orders)) return [];
+
     return orders.filter(o => {
-      const s = String(o.status || "").toUpperCase().trim();
-      // Only count items that are actually waiting for the student at the counter
-      return s === 'READY';
+      // 🛡️ STRICT CHECK: Order must have a valid ID AND the status must be 'READY'
+      const hasValidId = o && (o.id !== undefined && o.id !== null);
+      const isReady = String(o.status || "").toUpperCase().trim() === 'READY';
+
+      return hasValidId && isReady;
     });
   }, [orders]);
 

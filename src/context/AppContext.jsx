@@ -240,29 +240,49 @@ export const AppProvider = ({ children }) => {
         }
         return { success: false, message: r.data?.message || "Failed" };
       },
-      submitReceipt: async (orderId, referenceNumber) => {
-        // 🛡️ Debug Log: Check if these exist!
-        console.log("Submitting Receipt:", { orderId, referenceNumber, stableUserId });
+      submitReceipt: async (id, referenceNumber) => {
+        // 1. Trace the incoming data
+        console.log("🛠️ Submitting Receipt for ID:", id, "Ref:", referenceNumber);
 
-        if (!orderId) {
-          console.error("Submit failed: orderId is missing");
-          return { success: false, error: "Invalid Order ID" };
+        // 2. Handle potential ID naming mismatches from the UI
+        const targetId = id;
+
+        if (!targetId) {
+          console.error("❌ Submit failed: No ID provided to the function.");
+          return { success: false, error: "Order ID is missing." };
         }
 
-        const res = await api('/api/orders/status-update', 'POST', {
-          ids: [orderId], // Ensure this matches the backend 'ids' expectation
-          status: 'AWAITING_VERIFICATION',
-          receipt_url: referenceNumber,
-          userId: stableUserId
-        });
+        try {
+          const res = await api('/api/orders/status-update', 'POST', {
+            ids: [targetId], // Backend expects an array
+            status: 'AWAITING_VERIFICATION',
+            receipt_url: referenceNumber, // We saw this is the text column in your DB
+            userId: stableUserId
+          });
 
-        if (res.ok) {
-          // We'll fix the "Instant" part next
-          if (typeof refreshData === 'function') refreshData();
-          return { success: true };
+          // 3. Robust Response Check
+          // If 'api' returns the raw fetch Response, use res.ok. 
+          // If it returns parsed JSON, check for a success flag.
+          const isSuccess = res && (res.ok || res.success || res.status === 200);
+
+          if (isSuccess) {
+            console.log("✅ Submission Successful!");
+            if (typeof refreshData === 'function') {
+              await refreshData();
+            }
+            return { success: true };
+          }
+
+          // 4. Handle Server Rejection (e.g., 404, 500)
+          const errorMsg = res?.message || "Server rejected the update.";
+          console.error("⚠️ Server Error:", errorMsg);
+          return { success: false, error: errorMsg };
+
+        } catch (err) {
+          // 5. Handle Network/Connection Failures
+          console.error("🚨 Network/Connection Error:", err);
+          return { success: false, error: "Connection issue. Please try again." };
         }
-
-        return { success: false };
       },
       processScanClaim: async (orderIds, adminId) => {
         const normalizedIds = Array.isArray(orderIds) ? orderIds.map(id => String(id)) : [String(orderIds)];

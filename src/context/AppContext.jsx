@@ -102,6 +102,14 @@ export const AppProvider = ({ children }) => {
     }
   }, [stableUserId, stableRole, normalizeUser, api]);
 
+  // 🛡️ STABILITY LAYER: Prevent "l is not a function" minification errors
+  const refreshDataRef = React.useRef(refreshData);
+
+  // Keep the ref updated with the latest version of the function logic
+  useEffect(() => {
+    refreshDataRef.current = refreshData;
+  }, [refreshData]);
+
   const refreshUser = useCallback(async () => {
     if (!stableUserId) return;
     const r = await api(`/api/auth/user/${stableUserId}`);
@@ -123,13 +131,20 @@ export const AppProvider = ({ children }) => {
     };
 
     return {
-      refreshOrders: refreshData,
-      fetchOrders: refreshData,
-      syncStats: () => refreshData(),
-      fetchStats: () => refreshData(),
+      // 🚀 Use the Ref to ensure these never change memory addresses
+      refreshOrders: () => refreshDataRef.current(),
+      fetchOrders: () => refreshDataRef.current(),
+      syncStats: () => refreshDataRef.current(),
+      fetchStats: () => refreshDataRef.current(),
+      refreshData: () => refreshDataRef.current(),
+
       setUser: (userData) => {
-        if (userData) localStorage.setItem('app_user', JSON.stringify(userData));
-        else { localStorage.removeItem('app_user'); localStorage.removeItem('token'); }
+        if (userData) {
+          localStorage.setItem('app_user', JSON.stringify(userData));
+        } else {
+          localStorage.removeItem('app_user');
+          localStorage.removeItem('token');
+        }
         setUserState(userData);
       },
       register: async (studentData) => {
@@ -174,7 +189,7 @@ export const AppProvider = ({ children }) => {
             const normalized = normalizeUser(r.data.user);
             localStorage.setItem('app_user', JSON.stringify(normalized));
             setUserState(normalized);
-          } else { refreshData(); }
+          } else { refreshDataRef.current(); }
           return { success: true };
         }
         return { success: false, message: r.data?.message || "Verification failed" };
@@ -221,7 +236,7 @@ export const AppProvider = ({ children }) => {
           setOrders(prev => prev.some(o => String(o.id) === String(sO.id)) ? prev : [sO, ...prev]);
 
           // 🚀 SYNC FIX: Immediately pull new MySQL IDs to prevent "Submission Failed"
-          await refreshData();
+          await refreshDataRef.current();
 
           return { success: true, orderId: sO.id };
         }
@@ -240,7 +255,7 @@ export const AppProvider = ({ children }) => {
           });
           const isSuccess = res && (res.ok || res.success || res.status === 200);
           if (isSuccess) {
-            await refreshData();
+            await refreshDataRef.current();
             return { success: true };
           }
           return { success: false, error: res?.message || "Server rejected update" };
@@ -289,7 +304,7 @@ export const AppProvider = ({ children }) => {
         return { success: r.ok };
       }
     };
-  }, [stableUserId, api, normalizeUser, refreshData, refreshUser]);
+  }, [stableUserId, api, normalizeUser]);
 
   // --- 5. DERIVED STATE ---
   const currentQueue = useMemo(() => orders.filter(o => !['CLAIMED', 'CANCELLED'].includes(o.status?.toUpperCase())).length, [orders]);
@@ -342,19 +357,18 @@ export const AppProvider = ({ children }) => {
 
   return (
     <AppContext.Provider value={{
-      // 1. State
+      // 1. State Variables
       user, users, items, orders, announcements, officeStatus, loading, privateAlert,
-      currentQueue, readyOrders, currentServingId, myOrders,
+      currentQueue, readyOrders, refreshUser, currentServingId, myOrders,
 
-      // 2. Explicit Functions (Don't rely on the 'actions' spread for these)
-      refreshUser,
-      refreshData,
-      refreshOrders: refreshData,
-      fetchOrders: refreshData,
-      fetchStats: refreshData,
-      syncStats: refreshData,
+      // 2. Stable Function Aliases
+      refreshData: () => refreshDataRef.current(),
+      refreshOrders: () => refreshDataRef.current(),
+      fetchOrders: () => refreshDataRef.current(),
+      fetchStats: () => refreshDataRef.current(),
+      syncStats: () => refreshDataRef.current(),
 
-      // 3. Spreading the rest of the actions
+      // 3. Spread the rest of the actions
       ...actions
     }}>
       {children}

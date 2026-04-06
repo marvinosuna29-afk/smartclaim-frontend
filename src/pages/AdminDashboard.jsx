@@ -29,12 +29,16 @@ export default function AdminDashboard({ setActiveTab }) {
 
   // 2. DATA NORMALIZATION
   const normalizedOrders = useMemo(() => {
-    return orders.map(o => ({
-      ...o,
-      status: String(o.status || 'PENDING').toUpperCase().trim(),
-      itemName: (o.item_name || o.itemName || "").trim(),
-      chartDate: o.created_at || o.date
-    }));
+    return orders.map(o => {
+      // Ensure we have a valid date string
+      const rawDate = o.created_at || o.date || new Date().toISOString();
+      return {
+        ...o,
+        status: String(o.status || 'PENDING').toUpperCase().trim(),
+        itemName: (o.item_name || o.itemName || "").trim(),
+        chartDate: rawDate // Guaranteed string
+      };
+    });
   }, [orders]);
 
   const currentStatus = officeStatus || 'OPEN';
@@ -141,11 +145,18 @@ export default function AdminDashboard({ setActiveTab }) {
         </div>
 
         {/* --- FIXED CHART AREA --- */}
-        <div 
-          className="w-full mb-12 no-print bg-slate-50 rounded-[2.5rem] p-6 border border-slate-100 block relative"
-          style={{ height: '450px', minHeight: '450px' }}
+        <div
+          className="w-full mb-12 bg-slate-50 rounded-[2.5rem] p-6 border border-slate-100 relative"
+          style={{
+            height: '450px',
+            minHeight: '450px',
+            overflow: 'visible' // Important for Recharts tooltips
+          }}
         >
-          {normalizedOrders.length > 0 ? (
+          {/* Add a console log here temporarily to see if data exists when rendering */}
+          {console.log("Dashboard passing to chart:", normalizedOrders)}
+
+          {normalizedOrders && normalizedOrders.length > 0 ? (
             <OrderAnalytics orders={normalizedOrders} />
           ) : (
             <div className="h-full flex flex-col items-center justify-center text-slate-300">

@@ -30,14 +30,11 @@ export default function AdminDashboard({ setActiveTab }) {
   // 2. DATA NORMALIZATION
   const normalizedOrders = useMemo(() => {
     return orders.map(o => {
-      // Fallback chain: created_at -> date -> chartDate -> Current Time
       const rawDate = o.created_at || o.date || o.chartDate || new Date().toISOString();
-
       return {
         ...o,
         status: String(o.status || 'PENDING').toUpperCase().trim(),
         itemName: (o.item_name || o.itemName || "").trim(),
-        // Ensure both keys exist so OrderAnalytics is guaranteed to find it
         created_at: rawDate,
         chartDate: rawDate
       };
@@ -92,7 +89,7 @@ export default function AdminDashboard({ setActiveTab }) {
 
       {/* LOADING OVERLAY */}
       {loading && (
-        <div className="fixed top-4 right-4 z-50 bg-white/80 backdrop-blur p-4 rounded-3xl shadow-xl border border-slate-100 flex items-center gap-3">
+        <div className="fixed top-4 right-4 z-50 bg-white/80 backdrop-blur p-4 rounded-3xl shadow-xl border border-slate-100 flex items-center gap-3 no-print">
           <Loader2 className="animate-spin text-emerald-500" size={18} />
           <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">Syncing Aiven...</span>
         </div>
@@ -134,31 +131,24 @@ export default function AdminDashboard({ setActiveTab }) {
       </div>
 
       {/* ANALYTICS & AUDIT */}
-      <section className="bg-white border border-slate-100 rounded-[3.5rem] p-8 md:p-10 shadow-sm relative">
+      <section className="bg-white border border-slate-100 rounded-[3.5rem] p-8 md:p-10 shadow-sm relative print:border-none print:shadow-none print:p-0">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4">
           <div>
             <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tighter flex items-center gap-2">
               <TrendingUp className="text-emerald-500" /> System Audit Log
             </h3>
-            <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Real-time throughput data</p>
+            <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase no-print">Real-time throughput data</p>
           </div>
           <button onClick={() => window.print()} className="no-print px-6 py-3 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-emerald-600 transition-all flex items-center gap-2">
             <Hash size={14} /> Generate Report
           </button>
         </div>
 
-        {/* --- FIXED CHART AREA --- */}
+        {/* CHART AREA */}
         <div
-          className="w-full mb-12 bg-slate-50 rounded-[2.5rem] p-6 border border-slate-100 relative"
-          style={{
-            height: '450px',
-            minHeight: '450px',
-            overflow: 'visible' // Important for Recharts tooltips
-          }}
+          className="w-full mb-12 bg-slate-50 rounded-[2.5rem] p-6 border border-slate-100 relative print:bg-white print:border-none"
+          style={{ height: '450px', minHeight: '450px' }}
         >
-          {/* Add a console log here temporarily to see if data exists when rendering */}
-          {console.log("Dashboard passing to chart:", normalizedOrders)}
-
           {normalizedOrders && normalizedOrders.length > 0 ? (
             <OrderAnalytics orders={normalizedOrders} />
           ) : (
@@ -169,11 +159,11 @@ export default function AdminDashboard({ setActiveTab }) {
           )}
         </div>
 
-        {/* AUDIT TABLE */}
-        <div className="overflow-x-auto rounded-[2.5rem] border border-slate-100">
+        {/* AUDIT TABLE - Fixed for Printing */}
+        <div className="overflow-x-auto rounded-[2.5rem] border border-slate-100 print:overflow-visible print:h-auto print:border-none">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-slate-50 text-[10px] font-black uppercase text-slate-400 tracking-widest">
+              <tr className="bg-slate-50 text-[10px] font-black uppercase text-slate-400 tracking-widest print:bg-white print:text-black">
                 <th className="px-8 py-5">Asset Name</th>
                 <th className="px-8 py-5 text-center">In Verification</th>
                 <th className="px-8 py-5 text-center">Fulfilled</th>
@@ -181,7 +171,7 @@ export default function AdminDashboard({ setActiveTab }) {
                 <th className="px-8 py-5 text-right">Status</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-50">
+            <tbody className="divide-y divide-slate-50 print:divide-slate-200">
               {items.map((item) => {
                 const itemOrders = normalizedOrders.filter(o =>
                   o.itemName === item.name || String(o.item_id) === String(item.id)
@@ -190,7 +180,7 @@ export default function AdminDashboard({ setActiveTab }) {
                 const done = itemOrders.filter(o => ['READY', 'CLAIMED', 'COMPLETED'].includes(o.status)).length;
 
                 return (
-                  <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
+                  <tr key={item.id} className="hover:bg-slate-50/50 transition-colors print:page-break-inside-avoid">
                     <td className="px-8 py-5 font-black text-slate-900 uppercase text-xs">{item.name}</td>
                     <td className="px-8 py-5 text-center font-bold text-amber-500">{pending}</td>
                     <td className="px-8 py-5 text-center font-bold text-emerald-500">{done}</td>

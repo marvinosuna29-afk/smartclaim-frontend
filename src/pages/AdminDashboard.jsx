@@ -17,11 +17,23 @@ export default function AdminDashboard({ setActiveTab }) {
     refreshData // This was likely the 'l' function failing
   } = useApp();
 
-  // 🛡️ SAFE REFRESH: Only call if it's a valid function
+  // 🛡️ HEARTBEAT REFRESH: Keeps the dashboard live
   useEffect(() => {
+    // 1. Initial fetch when admin logs in
     if (typeof refreshData === 'function') {
       refreshData();
     }
+
+    // 2. Set up a heartbeat to check for new orders every 10 seconds
+    const heartbeat = setInterval(() => {
+      if (typeof refreshData === 'function') {
+        console.log("Auto-syncing dashboard stats...");
+        refreshData();
+      }
+    }, 10000); // 10 seconds
+
+    // 3. Cleanup: Stop the heartbeat if the admin leaves the dashboard
+    return () => clearInterval(heartbeat);
   }, [refreshData]);
 
   const currentStatus = officeStatus || 'OPEN';
@@ -180,13 +192,20 @@ export default function AdminDashboard({ setActiveTab }) {
                     )}
                   </div>
                   <button
-                    onClick={() => {
+                    onClick={async () => {
+                      if (!order.id) return;
                       const confirmAction = window.confirm("Verify payment and move to pickup queue?");
                       if (confirmAction && typeof updateOrderStatusBulk === 'function') {
-                        updateOrderStatusBulk([order.id], 'READY');
+                        try {
+                          await updateOrderStatusBulk([order.id], 'READY');
+                          // Optional: Manual refresh immediately after success
+                          if (typeof refreshData === 'function') refreshData();
+                        } catch (err) {
+                          alert("Verification failed. Please check connection.");
+                        }
                       }
                     }}
-                    className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-emerald-950 transition-all shadow-sm"
+                    className = "w-full py-4 bg-emerald-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-emerald-950 transition-all shadow-sm"
                   >
                     Verify & Release
                   </button>

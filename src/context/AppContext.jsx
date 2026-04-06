@@ -221,7 +221,7 @@ export const AppProvider = ({ children }) => {
       // Using the local constant to point both function names to the same logic
       updateItemStock: updateStockLogic,
       updateStock: updateStockLogic,
-      
+
       toggleLowStock: async (itemId) => {
         const r = await api('/api/items/toggle-low-stock', 'PATCH', { itemId, adminId: stableUserId });
         if (r.ok) {
@@ -241,10 +241,27 @@ export const AppProvider = ({ children }) => {
         return { success: false, message: r.data?.message || "Failed" };
       },
       submitReceipt: async (orderId, referenceNumber) => {
+        // 🛡️ Debug Log: Check if these exist!
+        console.log("Submitting Receipt:", { orderId, referenceNumber, stableUserId });
+
+        if (!orderId) {
+          console.error("Submit failed: orderId is missing");
+          return { success: false, error: "Invalid Order ID" };
+        }
+
         const res = await api('/api/orders/status-update', 'POST', {
-          ids: [orderId], status: 'AWAITING_VERIFICATION', receipt_url: referenceNumber, userId: stableUserId
+          ids: [orderId], // Ensure this matches the backend 'ids' expectation
+          status: 'AWAITING_VERIFICATION',
+          receipt_url: referenceNumber,
+          userId: stableUserId
         });
-        if (res.ok) { refreshData(); return { success: true }; }
+
+        if (res.ok) {
+          // We'll fix the "Instant" part next
+          if (typeof refreshData === 'function') refreshData();
+          return { success: true };
+        }
+
         return { success: false };
       },
       processScanClaim: async (orderIds, adminId) => {
@@ -341,7 +358,7 @@ export const AppProvider = ({ children }) => {
       fetchOrders: refreshData,
       fetchStats: refreshData,
       syncStats: refreshData,
-      refreshData, 
+      refreshData,
       ...actions
     }}>
       {children}

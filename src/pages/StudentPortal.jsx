@@ -30,9 +30,8 @@ export default function StudentPortal({ needsVerification, activeTab, myOrders: 
   const [selectedOrderForQR, setSelectedOrderForQR] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // --- 2. MEMO HOOKS (Filter Logic) ---
+  // --- 2. MEMO HOOKS ---
   const myOrders = useMemo(() => {
-    // Now using 'contextOrders' which was renamed above
     const sourceOrders = contextOrders.length > 0 ? contextOrders : (propsOrders || []);
     const currentUserId = String(user?.user_id || user?.id || "").trim();
 
@@ -68,13 +67,6 @@ export default function StudentPortal({ needsVerification, activeTab, myOrders: 
       const isReady = ['READY', 'APPROVED', 'FOR PICKUP'].includes(s);
       const isFinished = ['CLAIMED', 'RELEASED', 'COMPLETED', 'VOIDED'].includes(s);
       return isReady && !isFinished;
-    });
-  }, [myOrders]);
-
-  const completedOrders = useMemo(() => {
-    return myOrders.filter(order => {
-      const s = String(order.status || "").toUpperCase().trim();
-      return ['CLAIMED', 'COMPLETED', 'CANCELLED', 'VOIDED'].includes(s);
     });
   }, [myOrders]);
 
@@ -130,7 +122,7 @@ export default function StudentPortal({ needsVerification, activeTab, myOrders: 
     }
   };
 
-  // --- 5. THE GATE (Conditional Rendering) ---
+  // --- 5. THE GATE (Verification) ---
   if (needsVerification && user?.role?.toLowerCase() !== 'admin') {
     return (
       <div className="flex flex-col items-center justify-center min-h-[70vh] p-8 text-center animate-in fade-in duration-700">
@@ -140,28 +132,20 @@ export default function StudentPortal({ needsVerification, activeTab, myOrders: 
             <Clock size={64} strokeWidth={1.5} className="animate-pulse" />
           </div>
         </div>
-        <div className="max-w-sm space-y-6"> {/* Increased space-y */}
+        <div className="max-w-sm space-y-6">
           <h2 className="text-3xl font-black text-slate-900 uppercase tracking-tighter leading-none">Awaiting Entry</h2>
           <p className="text-slate-400 font-bold text-sm leading-relaxed">
             Your credentials have been submitted. The administration is currently verifying your student profile.
           </p>
-
           <div className="flex flex-col gap-3">
             <div className="inline-flex items-center justify-center gap-2 px-6 py-2 bg-slate-900 text-white rounded-full text-[10px] font-black uppercase tracking-[0.2em]">
               Status: Pending Admin Approval
             </div>
-
-            {/* --- THE ESCAPE HATCH BUTTON --- */}
             <button
               onClick={async () => {
                 if (window.confirm("Unlink Discord and try verifying again?")) {
                   const result = await unlinkDiscord();
-                  if (result.success) {
-                    // The refreshUser() inside the action will handle the state update
-                    alert("Discord unlinked. You can now try again.");
-                  } else {
-                    alert(result.message);
-                  }
+                  if (!result.success) alert(result.message);
                 }
               }}
               className="text-[10px] font-black text-red-500 uppercase tracking-widest hover:underline mt-4"
@@ -174,10 +158,6 @@ export default function StudentPortal({ needsVerification, activeTab, myOrders: 
     );
   }
 
-  // Final Console Log for Debugging
-  console.log("Current User ID:", user?.id, "Ready Orders:", readyOrders);
-
-  // --- 6. MAIN RENDER ---
   return (
     <div className="max-w-7xl mx-auto space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-1000 pb-20">
 
@@ -220,14 +200,7 @@ export default function StudentPortal({ needsVerification, activeTab, myOrders: 
           </div>
 
           <div className="space-y-6">
-            {loading && contextOrders.length === 0 ? (
-              <div className="h-48 w-full bg-slate-50 rounded-[3rem] border border-dashed border-slate-200 animate-pulse flex items-center justify-center">
-                <div className="flex items-center gap-3">
-                  <Loader2 className="animate-spin text-slate-300" size={20} />
-                  <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Verifying Ticket Status...</p>
-                </div>
-              </div>
-            ) : readyOrders.length > 0 ? (
+            {readyOrders.length > 0 && (
               <div className="relative overflow-hidden bg-emerald-600 rounded-[3rem] p-10 md:p-14 text-white shadow-2xl animate-in zoom-in duration-500">
                 <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-10">
                   <div className="space-y-4 text-center md:text-left">
@@ -238,16 +211,9 @@ export default function StudentPortal({ needsVerification, activeTab, myOrders: 
                     <h1 className="text-5xl md:text-7xl font-black tracking-tighter uppercase leading-none">
                       Ready for <br /><span className="text-emerald-100 underline decoration-white/30">Collection</span>
                     </h1>
-                    <p className="text-emerald-100/80 font-bold text-sm uppercase tracking-widest">
-                      {readyOrders.length} {readyOrders.length > 1 ? 'Items' : 'Item'} Authorized for Pickup
-                    </p>
                   </div>
-
                   <button
-                    onClick={() => {
-                      setSelectedOrderForQR(readyOrders[0]);
-                      setShowQRModal(true);
-                    }}
+                    onClick={() => { setSelectedOrderForQR(readyOrders[0]); setShowQRModal(true); }}
                     className="group relative active:scale-95 transition-all"
                   >
                     <div className="absolute inset-0 bg-white/40 blur-3xl group-hover:bg-white/60 transition-all duration-700" />
@@ -258,12 +224,11 @@ export default function StudentPortal({ needsVerification, activeTab, myOrders: 
                   </button>
                 </div>
               </div>
-            ) : null}
-
+            )}
             <QueueMonitor />
           </div>
 
-          {announcements.length > 0 ? (
+          {announcements.length > 0 && (
             <section className="space-y-4 px-2">
               <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 flex items-center gap-2">
                 <Megaphone size={14} className="text-emerald-500" /> Office Directives
@@ -274,20 +239,11 @@ export default function StudentPortal({ needsVerification, activeTab, myOrders: 
                     <Megaphone className="absolute -right-6 -bottom-6 text-emerald-900/40 rotate-12" size={140} />
                     <div className="relative z-10 flex flex-col justify-between h-full space-y-8">
                       <p className="text-xl md:text-2xl font-bold italic">"{ann.content}"</p>
-                      <div className="flex items-center justify-between pt-4 border-t border-emerald-900/50 text-[9px] uppercase font-black">
-                        <span>Broadcast Sync</span>
-                        <ChevronRight size={18} className="text-emerald-500" />
-                      </div>
                     </div>
                   </div>
                 ))}
               </div>
             </section>
-          ) : (
-            <div className="mx-2 p-6 bg-slate-50 rounded-[2rem] border border-dashed border-slate-200 flex items-center justify-center gap-3">
-              <Sparkles size={16} className="text-slate-300" />
-              <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest text-center">System idle — no live directives.</p>
-            </div>
           )}
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
@@ -297,7 +253,7 @@ export default function StudentPortal({ needsVerification, activeTab, myOrders: 
                   <h3 className="text-[11px] font-black uppercase tracking-widest text-amber-700 flex items-center gap-2">
                     <Wallet size={16} /> Action Required: Payment
                   </h3>
-                  <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                  <div className="space-y-3">
                     {pendingPayment.map(order => (
                       <div key={order.id} className="bg-white p-5 rounded-2xl flex justify-between items-center shadow-sm border border-amber-200/20">
                         <div>
@@ -321,7 +277,6 @@ export default function StudentPortal({ needsVerification, activeTab, myOrders: 
                 <h3 className="text-lg font-black uppercase tracking-tighter text-slate-900 flex items-center gap-3 mb-8">
                   <CheckCircle2 className="text-emerald-500" size={22} /> My Pickup Terminal
                 </h3>
-
                 {(readyOrders.length > 0 || verifyingOrders.length > 0) ? (
                   <div className="space-y-4">
                     {verifyingOrders.map(order => (
@@ -333,7 +288,6 @@ export default function StudentPortal({ needsVerification, activeTab, myOrders: 
                         <div className="text-slate-300 animate-pulse"><Clock size={20} /></div>
                       </div>
                     ))}
-
                     {readyOrders.map(order => (
                       <button
                         key={order.id}
@@ -359,7 +313,7 @@ export default function StudentPortal({ needsVerification, activeTab, myOrders: 
               </div>
             </div>
 
-            <div className="lg:col-span-7 space-y-8 relative">
+            <div className="lg:col-span-7 space-y-8">
               <div className="flex justify-between items-center px-4">
                 <h3 className="text-2xl font-black uppercase tracking-tighter text-slate-900">Inventory Catalog</h3>
                 {officeStatus === 'CLOSED' && (
@@ -369,17 +323,12 @@ export default function StudentPortal({ needsVerification, activeTab, myOrders: 
                   </div>
                 )}
               </div>
-
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 {items.map(item => (
                   <div key={item.id} className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm flex flex-col justify-between hover:shadow-xl transition-all duration-500 group relative overflow-hidden">
-                    {officeStatus === 'CLOSED' && (
-                      <div className="absolute inset-0 z-10 bg-slate-50/40 backdrop-blur-[1px] cursor-not-allowed" />
-                    )}
+                    {officeStatus === 'CLOSED' && <div className="absolute inset-0 z-10 bg-slate-50/40 backdrop-blur-[1px] cursor-not-allowed" />}
                     <div>
-                      <h4 className="text-xl font-black uppercase text-slate-900 tracking-tight group-hover:text-emerald-600 transition-colors mb-6">
-                        {item.name}
-                      </h4>
+                      <h4 className="text-xl font-black uppercase text-slate-900 tracking-tight group-hover:text-emerald-600 transition-colors mb-6">{item.name}</h4>
                       <div className="grid grid-cols-3 gap-2 mb-8">
                         {Object.entries(item.sizes || {}).map(([size, qty]) => {
                           const isOutOfStock = qty <= 0 || item.hidden_sizes?.includes(size);
@@ -389,12 +338,7 @@ export default function StudentPortal({ needsVerification, activeTab, myOrders: 
                               key={size}
                               disabled={isOutOfStock || officeStatus === 'CLOSED'}
                               onClick={() => setSelectedSizes({ ...selectedSizes, [item.id]: size })}
-                              className={`py-3 rounded-2xl text-[10px] font-black uppercase transition-all border-2 relative z-20 ${isSelected
-                                ? 'bg-slate-900 border-slate-900 text-white'
-                                : !isOutOfStock
-                                  ? 'bg-white border-slate-100 text-slate-500 hover:border-emerald-400'
-                                  : 'bg-slate-50 border-transparent text-slate-200 cursor-not-allowed'
-                                }`}
+                              className={`py-3 rounded-2xl text-[10px] font-black uppercase transition-all border-2 relative z-20 ${isSelected ? 'bg-slate-900 border-slate-900 text-white' : !isOutOfStock ? 'bg-white border-slate-100 text-slate-500 hover:border-emerald-400' : 'bg-slate-50 border-transparent text-slate-200 cursor-not-allowed'}`}
                             >
                               {size}
                             </button>
@@ -407,16 +351,7 @@ export default function StudentPortal({ needsVerification, activeTab, myOrders: 
                       disabled={!selectedSizes[item.id] || officeStatus === 'CLOSED' || isSubmitting}
                       className="w-full py-5 bg-slate-100 text-slate-400 group-hover:bg-slate-900 group-hover:text-white rounded-[1.5rem] font-black text-[10px] uppercase tracking-[0.2em] transition-all disabled:opacity-20 active:scale-95 relative z-20"
                     >
-                      {isSubmitting ? (
-                        <div className="flex items-center justify-center gap-2">
-                          <Loader2 className="animate-spin" size={14} />
-                          <span>Processing...</span>
-                        </div>
-                      ) : officeStatus === 'CLOSED' ? (
-                        "Portal Inactive"
-                      ) : (
-                        "Initiate Request"
-                      )}
+                      {isSubmitting ? <Loader2 className="animate-spin mx-auto" size={14} /> : officeStatus === 'CLOSED' ? "Portal Inactive" : "Initiate Request"}
                     </button>
                   </div>
                 ))}
@@ -433,26 +368,21 @@ export default function StudentPortal({ needsVerification, activeTab, myOrders: 
             <h1 className="text-5xl font-black text-slate-900 tracking-tighter uppercase">My Orders</h1>
             <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Complete history of your requests</p>
           </div>
-
           <div className="grid grid-cols-1 gap-6">
             {myOrders.length > 0 ? (
               myOrders.map(order => (
-                <div key={order.id} className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm flex items-center justify-between group hover:shadow-md transition-all">
+                <div key={order.id} className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm flex items-center justify-between group">
                   <div className="flex items-center gap-6">
-                    <div className="w-14 h-14 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-400 group-hover:bg-emerald-50 group-hover:text-emerald-500 transition-colors">
+                    <div className="w-14 h-14 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-400 group-hover:bg-emerald-50 group-hover:text-emerald-500">
                       <Package size={24} />
                     </div>
                     <div>
                       <p className="text-lg font-black text-slate-900 uppercase tracking-tight">{order.item_name}</p>
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
-                        Size: {order.size} • Ref: {order.reference_number || 'Cash Payment'}
-                      </p>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Size: {order.size} • Ref: {order.reference_number || 'Cash'}</p>
                     </div>
                   </div>
-
                   <div className="flex flex-col items-end gap-2">
-                    <div className={`px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest ${['READY', 'APPROVED'].includes(String(order.status || "").toUpperCase()) ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-500'
-                      }`}>
+                    <div className={`px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest ${['READY', 'APPROVED'].includes(String(order.status || "").toUpperCase()) ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-500'}`}>
                       {order.status}
                     </div>
                     <p className="text-[9px] font-bold text-slate-300 uppercase">{new Date(order.created_at).toLocaleDateString()}</p>
@@ -468,39 +398,26 @@ export default function StudentPortal({ needsVerification, activeTab, myOrders: 
         </div>
       )}
 
-      {/* 🎟️ DIGITAL CLAIM MODAL */}
+      {/* 🎟️ DIGITAL CLAIM MODAL (QR ID REMOVED) */}
       {showQRModal && selectedOrderForQR && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-950/90 backdrop-blur-md animate-in fade-in duration-300">
           <div className="bg-white w-full max-w-sm rounded-[4rem] overflow-hidden relative animate-in zoom-in duration-300">
             <div className="bg-slate-900 p-10 pb-14 text-center relative">
-              <button
-                onClick={() => setShowQRModal(false)}
-                className="absolute top-8 right-8 text-white/30 hover:text-white transition-colors"
-              >
-                <X size={24} />
-              </button>
+              <button onClick={() => setShowQRModal(false)} className="absolute top-8 right-8 text-white/30 hover:text-white"><X size={24} /></button>
               <div className="space-y-2">
                 <p className="text-[10px] font-black text-emerald-400 uppercase tracking-[0.3em]">Authorized Collection</p>
-                <h3 className="text-3xl font-black uppercase text-white tracking-tighter leading-none">
-                  {selectedOrderForQR.item_name}
-                </h3>
-                <p className="text-white/40 text-[10px] font-bold uppercase tracking-widest">
-                  Ref: #{String(selectedOrderForQR.id).padStart(4, '0')}
+                <h3 className="text-3xl font-black uppercase text-white tracking-tighter leading-none">{selectedOrderForQR.item_name}</h3>
+                {/* ❌ REMOVED: Ref: #{selectedOrderForQR.id} */}
+                <p className="text-emerald-500/80 text-[9px] font-black uppercase tracking-[0.2em] flex items-center justify-center gap-2 mt-2">
+                   <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                   Dynamic Queue System Active
                 </p>
               </div>
             </div>
-
             <div className="p-10 text-center space-y-8">
               <div className="bg-white p-6 rounded-[3rem] inline-block border-2 border-slate-50 shadow-inner">
-                <QRCodeSVG
-                  value={String(selectedOrderForQR.id)}
-                  size={180}
-                  level="H"
-                  includeMargin={true}
-                  fgColor="#0f172a"
-                />
+                <QRCodeSVG value={String(selectedOrderForQR.id)} size={180} level="H" includeMargin={true} fgColor="#0f172a" />
               </div>
-
               <div className="p-6 bg-emerald-50 rounded-[2.5rem] border border-emerald-100">
                 <div className="flex items-center justify-center gap-4">
                   <div className="text-center">
@@ -514,19 +431,7 @@ export default function StudentPortal({ needsVerification, activeTab, myOrders: 
                   </div>
                 </div>
               </div>
-
-              <div className="space-y-4">
-                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest leading-relaxed px-4">
-                  Present this code to the office administrator. <br />
-                  Once scanned, this item will be marked as claimed.
-                </p>
-                <button
-                  onClick={() => setShowQRModal(false)}
-                  className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-[10px] hover:bg-slate-800 transition-all active:scale-95"
-                >
-                  Close Ticket
-                </button>
-              </div>
+              <button onClick={() => setShowQRModal(false)} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-[10px] hover:bg-slate-800 transition-all">Close Ticket</button>
             </div>
           </div>
         </div>

@@ -280,7 +280,7 @@ export const AppProvider = ({ children }) => {
 
         try {
           const res = await api('/api/orders/status-update', 'POST', {
-            ids: [id],
+            orderId: id, // Change 'ids: [id]' to 'orderId: id'
             status: 'AWAITING_VERIFICATION',
             receipt_url: referenceNumber,
             userId: stableUserId

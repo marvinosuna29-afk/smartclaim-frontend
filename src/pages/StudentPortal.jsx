@@ -1,3 +1,4 @@
+// Version 1.2.4 - Integrated Image Support & Enhanced UI
 import React, { useState, useEffect, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { QRCodeSVG } from 'qrcode.react';
@@ -325,10 +326,27 @@ export default function StudentPortal({ needsVerification, activeTab, myOrders: 
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 {items.map(item => (
-                  <div key={item.id} className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm flex flex-col justify-between hover:shadow-xl transition-all duration-500 group relative overflow-hidden">
+                  <div key={item.id} className="bg-white p-6 rounded-[3rem] border border-slate-100 shadow-sm flex flex-col hover:shadow-xl transition-all duration-500 group relative overflow-hidden">
                     {officeStatus === 'CLOSED' && <div className="absolute inset-0 z-10 bg-slate-50/40 backdrop-blur-[1px] cursor-not-allowed" />}
-                    <div>
-                      <h4 className="text-xl font-black uppercase text-slate-900 tracking-tight group-hover:text-emerald-600 transition-colors mb-6">{item.name}</h4>
+                    
+                    {/* 🖼️ ITEM IMAGE SECTION */}
+                    <div className="relative w-full h-48 mb-6 overflow-hidden rounded-[2rem] bg-slate-50 border border-slate-100">
+                      {item.image_url ? (
+                        <img 
+                          src={item.image_url} 
+                          alt={item.name} 
+                          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex flex-col items-center justify-center text-slate-300">
+                          <Package size={40} strokeWidth={1} />
+                          <p className="text-[8px] font-black uppercase tracking-widest mt-2">No Preview</p>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex-1">
+                      <h4 className="text-xl font-black uppercase text-slate-900 tracking-tight group-hover:text-emerald-600 transition-colors mb-4">{item.name}</h4>
                       <div className="grid grid-cols-3 gap-2 mb-8">
                         {Object.entries(item.sizes || {}).map(([size, qty]) => {
                           const isOutOfStock = qty <= 0 || item.hidden_sizes?.includes(size);
@@ -373,7 +391,8 @@ export default function StudentPortal({ needsVerification, activeTab, myOrders: 
               myOrders.map(order => (
                 <div key={order.id} className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm flex items-center justify-between group">
                   <div className="flex items-center gap-6">
-                    <div className="w-14 h-14 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-400 group-hover:bg-emerald-50 group-hover:text-emerald-500">
+                    <div className="w-14 h-14 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-400 group-hover:bg-emerald-50 group-hover:text-emerald-500 overflow-hidden">
+                      {/* Optional: Add small thumb here if needed */}
                       <Package size={24} />
                     </div>
                     <div>
@@ -398,7 +417,7 @@ export default function StudentPortal({ needsVerification, activeTab, myOrders: 
         </div>
       )}
 
-      {/* 🎟️ DIGITAL CLAIM MODAL (QR ID REMOVED) */}
+      {/* 🎟️ DIGITAL CLAIM MODAL */}
       {showQRModal && selectedOrderForQR && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-950/90 backdrop-blur-md animate-in fade-in duration-300">
           <div className="bg-white w-full max-w-sm rounded-[4rem] overflow-hidden relative animate-in zoom-in duration-300">
@@ -407,7 +426,6 @@ export default function StudentPortal({ needsVerification, activeTab, myOrders: 
               <div className="space-y-2">
                 <p className="text-[10px] font-black text-emerald-400 uppercase tracking-[0.3em]">Authorized Collection</p>
                 <h3 className="text-3xl font-black uppercase text-white tracking-tighter leading-none">{selectedOrderForQR.item_name}</h3>
-                {/* ❌ REMOVED: Ref: #{selectedOrderForQR.id} */}
                 <p className="text-emerald-500/80 text-[9px] font-black uppercase tracking-[0.2em] flex items-center justify-center gap-2 mt-2">
                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
                    Dynamic Queue System Active

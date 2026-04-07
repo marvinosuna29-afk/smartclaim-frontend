@@ -279,8 +279,9 @@ export const AppProvider = ({ children }) => {
         if (!id) return { success: false, error: "Order ID is missing." };
 
         try {
+          // In AppContext.js -> submitReceipt
           const res = await api('/api/orders/status-update', 'POST', {
-            orderId: id, // Change 'ids: [id]' to 'orderId: id'
+            ids: [id], // Use 'ids' as an array to match backend destructuring
             status: 'AWAITING_VERIFICATION',
             receipt_url: referenceNumber,
             userId: stableUserId

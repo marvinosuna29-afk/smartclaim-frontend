@@ -323,52 +323,92 @@ export const AppProvider = ({ children }) => {
       printReceipt: async (order) => {
         if (!order) return;
 
-        // 🛡️ Pull the specific variable from your Render Environment
-        const DISCORD_RECEIPT_WEBHOOK = import.meta.env.VITE_DISCORD_RECEIPT_WEBHOOK;
+        const DISCORD_WEBHOOK = import.meta.env.VITE_DISCORD_RECEIPT_WEBHOOK;
 
-        // 🛡️ Guard: Check if Render has the webhook configured
-        if (!DISCORD_RECEIPT_WEBHOOK) {
-          console.error("VITE_DISCORD_RECEIPT_WEBHOOK not found in Render Environment Variables.");
-          alert("E-Receipt Error: Webhook not configured. Printing manually...");
-          window.print();
-          return;
-        }
+        // --- PART A: THE PHYSICAL THERMAL PRINT (58mm Style) ---
+        const handlePhysicalPrint = (orderData) => {
+          const printWindow = window.open('', '_blank', 'width=300,height=600');
+          const receiptHtml = `
+      <html>
+        <head>
+          <style>
+            @page { size: 58mm auto; margin: 0; }
+            body { 
+              font-family: 'Courier New', monospace; 
+              width: 54mm; /* Slightly narrower to prevent edge-clipping */
+              padding: 5mm; 
+              font-size: 12px; 
+              line-height: 1.2;
+              color: black;
+            }
+            .text-center { text-align: center; }
+            .divider { border-top: 1px dashed black; margin: 8px 0; }
+            .bold { font-weight: bold; }
+          </style>
+        </head>
+        <body>
+          <div class="text-center">
+            <span class="bold" style="font-size: 16px;">SMARTCLAIM</span><br/>
+            OFFICIAL RECEIPT
+          </div>
+          <div class="divider"></div>
+          <div><strong>DATE:</strong> ${new Date().toLocaleDateString()}</div>
+          <div><strong>ORDER:</strong> #${orderData.id}</div>
+          <div class="divider"></div>
+          <div><strong>STUDENT:</strong><br/>${orderData.full_name || "Verified Student"}</div>
+          <div style="margin-top: 5px;"><strong>ITEM:</strong><br/>${orderData.itemName || orderData.item_name}</div>
+          <div><strong>SIZE:</strong> ${orderData.size || "Standard"}</div>
+          <div class="divider"></div>
+          <div class="text-center">
+            <div style="border: 2px solid black; padding: 5px; display: inline-block; margin: 5px 0; font-weight: bold;">
+              STATUS: READY
+            </div>
+            <p style="font-size: 10px; margin-top: 10px;">Please present this at the counter.</p>
+          </div>
+        </body>
+      </html>
+    `;
+          printWindow.document.write(receiptHtml);
+          printWindow.document.close();
 
+          // Auto-trigger print dialog
+          printWindow.focus();
+          setTimeout(() => {
+            printWindow.print();
+            printWindow.close();
+          }, 500);
+        };
+
+        // --- PART B: THE DIGITAL SYNC (Discord) ---
         const receiptData = {
           embeds: [{
-            title: "📄 Official Digital Receipt",
-            // Normalized data to handle different naming conventions (snake_case vs camelCase)
-            description: `**${order.full_name || order.fullName || "Student"}** has successfully claimed their item.`,
-            color: 0x10b981, // Emerald Green
+            title: "✅ Order Verified & Ready",
+            description: `Admin has verified the order for **${order.full_name || "Student"}**.`,
+            color: 0x10b981,
             fields: [
               { name: "Order ID", value: `#${order.id}`, inline: true },
-              { name: "Item", value: order.item_name || order.itemName || "Unknown Item", inline: true },
-              { name: "Size", value: order.size || "Standard", inline: true },
-              { name: "Date/Time", value: new Date().toLocaleString(), inline: false }
+              { name: "Item", value: order.itemName || order.item_name, inline: true },
+              { name: "Reference", value: order.receipt_url || "Manual", inline: false }
             ],
-            footer: { text: "SmartClaim • Verified Digital Record" }
+            footer: { text: "SmartClaim Audit Log" },
+            timestamp: new Date().toISOString()
           }]
         };
 
         try {
-          const res = await fetch(DISCORD_RECEIPT_WEBHOOK, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(receiptData)
-          });
+          // 1. Fire the Printer logic
+          handlePhysicalPrint(order);
 
-          if (res.ok) {
-            // Small console log instead of alert for better UX (optional)
-            console.log("✅ Digital Receipt sent to Discord!");
-          } else {
-            const errorData = await res.json();
-            console.error("Discord API Error:", errorData);
-            throw new Error("Discord API rejected the request");
+          // 2. Fire the Discord Sync
+          if (DISCORD_WEBHOOK) {
+            await fetch(DISCORD_WEBHOOK, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(receiptData)
+            });
           }
         } catch (err) {
-          console.error("Discord Sync Error:", err);
-          alert("⚠️ Sync failed. Printing physical copy instead.");
-          window.print();
+          console.error("Receipt Sync/Print Error:", err);
         }
       },
       deleteAnnouncement: async (id) => {

@@ -13,6 +13,7 @@ import {
  * 🛠️ DATA PROCESSING LOGIC
  */
 const processOrderData = (orders) => {
+  console.log("Raw orders received in Analytics:", orders);
   const safeOrders = Array.isArray(orders) ? orders : [];
   const dailyCounts = {};
 

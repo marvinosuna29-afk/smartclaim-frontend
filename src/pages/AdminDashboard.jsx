@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext';
 import {
   Package, Clock, AlertTriangle, Hash,
   CheckCircle, Power, Info, TrendingUp, Send, Loader2, Database, Camera,
-  Image as ImageIcon 
+  Image as ImageIcon
 } from 'lucide-react';
 import OrderAnalytics from '../components/OrderAnalytics';
 
@@ -44,11 +44,16 @@ export default function AdminDashboard({ setActiveTab }) {
 
   const normalizedOrders = useMemo(() => {
     return orders.map(o => {
-      const rawDate = o.created_at || o.date || o.chartDate || new Date().toISOString();
+      // 1. Prioritize the camelCase names coming from your log
+      const name = o.itemName || o.item_name || "";
+      const id = o.itemId || o.item_id || "";
+      const rawDate = o.created_at || o.date || new Date().toISOString();
+
       return {
         ...o,
         status: String(o.status || 'PENDING').toUpperCase().trim(),
-        itemName: (o.item_name || o.itemName || "").trim(),
+        itemName: name.trim(),
+        itemId: id, // Ensure this exists for the stock audit filters
         created_at: rawDate,
         chartDate: rawDate
       };
@@ -230,7 +235,10 @@ export default function AdminDashboard({ setActiveTab }) {
                     </div>
                   </td>
                   <td className="px-6 py-4 text-center font-bold text-amber-500">
-                    {normalizedOrders.filter(o => (o.itemName === item.name || String(o.item_id) === String(item.id)) && ['AWAITING_VERIFICATION', 'VERIFYING'].includes(o.status)).length}
+                    {normalizedOrders.filter(o =>
+                      (o.itemName === item.name || String(o.itemId) === String(item.id)) &&
+                      ['AWAITING_VERIFICATION', 'VERIFYING'].includes(o.status)
+                    ).length}
                   </td>
                   <td className="px-6 py-4 text-center font-bold text-emerald-500">
                     {normalizedOrders.filter(o => (o.itemName === item.name || String(o.item_id) === String(item.id)) && ['READY', 'CLAIMED', 'COMPLETED'].includes(o.status)).length}

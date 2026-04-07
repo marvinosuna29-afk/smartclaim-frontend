@@ -44,18 +44,16 @@ export default function AdminDashboard({ setActiveTab }) {
 
   const normalizedOrders = useMemo(() => {
     return orders.map(o => {
-      // 1. Prioritize the camelCase names coming from your log
-      const name = o.itemName || o.item_name || "";
-      const id = o.itemId || o.item_id || "";
-      const rawDate = o.created_at || o.date || new Date().toISOString();
-
       return {
         ...o,
+        // Use the exact camelCase names from your DESCRIBE output
+        itemId: o.itemId,
+        userId: o.userId,
+        itemName: o.itemName || "Unknown Item",
         status: String(o.status || 'PENDING').toUpperCase().trim(),
-        itemName: name.trim(),
-        itemId: id, // Ensure this exists for the stock audit filters
-        created_at: rawDate,
-        chartDate: rawDate
+        // Ensure created_at is passed correctly to OrderAnalytics
+        created_at: o.created_at,
+        chartDate: o.created_at
       };
     });
   }, [orders]);

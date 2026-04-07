@@ -192,10 +192,10 @@ export default function ProfileSettings() {
               </div>
               <div className="space-y-2">
                 <h2 className="text-3xl font-black text-slate-900 uppercase tracking-tighter">
-                  {otpModal.type === 'discord' ? 'Discord Verify' : 'Verify Identity'}
+                  {otpModal.type === 'discord' ? 'Discord Link' : 'Security Verify'}
                 </h2>
                 <p className="text-slate-500 font-bold text-[10px] uppercase tracking-widest">
-                  {otpModal.type === 'discord' ? 'Check your Discord Direct Messages' : `Code sent to ${otpModal.type === 'profile' ? formData.email : user.email}`}
+                  Check your Discord Direct Messages for the 6-digit code
                 </p>
               </div>
 

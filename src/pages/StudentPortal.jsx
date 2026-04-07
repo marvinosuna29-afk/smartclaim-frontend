@@ -106,17 +106,19 @@ export default function StudentPortal({ needsVerification, activeTab, myOrders: 
   };
 
   const handleReferenceSubmit = async (orderId) => {
-    // 🛡️ BLOCKER: Check if we are already uploading THIS specific order
+    // Prevent double-clicking while one is already uploading
     if (uploadingId === orderId) return;
 
     const refNum = window.prompt("Enter your Payment Reference / Transaction Number:");
     if (!refNum || !refNum.trim()) return;
 
-    setUploadingId(orderId); // Lock the UI
+    setUploadingId(orderId); // Lock the specific row
     try {
       const response = await submitReceipt(orderId, refNum.trim());
-      if (!(response && response.success)) {
-        alert(response?.error || "Submission failed.");
+      if (response && response.success) {
+        // Success! AppContext.refreshData() handles the UI update
+      } else {
+        alert(response?.error || "Submission failed. Please try again.");
       }
     } catch (err) {
       console.error("Receipt Error:", err);

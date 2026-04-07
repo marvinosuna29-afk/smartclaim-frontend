@@ -275,24 +275,24 @@ export const AppProvider = ({ children }) => {
         return { success: false, message: r.data?.message || "Failed" };
       },
       submitReceipt: async (id, referenceNumber) => {
-        console.log("🛠️ Submitting Receipt for ID:", id, "Ref:", referenceNumber);
         if (!id) return { success: false, error: "Order ID is missing." };
 
         try {
-          // In AppContext.js -> submitReceipt
           const res = await api('/api/orders/status-update', 'POST', {
-            ids: [id], // Use 'ids' as an array to match backend destructuring
+            ids: [id], // Wrapped in array for backend compatibility
             status: 'AWAITING_VERIFICATION',
             receipt_url: referenceNumber,
             userId: stableUserId
           });
-          const isSuccess = res && (res.ok || res.success || res.status === 200);
-          if (isSuccess) {
-            await refreshDataRef.current();
+
+          // Check if response exists and was successful
+          if (res && (res.ok || res.success)) {
+            await refreshDataRef.current(); // Sync UI with DB
             return { success: true };
           }
-          return { success: false, error: res?.message || "Server rejected update" };
+          return { success: false, error: res?.data?.message || "Server rejected update" };
         } catch (err) {
+          console.error("SubmitReceipt Error:", err);
           return { success: false, error: "Connection issue." };
         }
       },

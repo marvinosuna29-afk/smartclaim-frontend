@@ -43,17 +43,22 @@ export default function AdminDashboard({ setActiveTab }) {
   };
 
   const normalizedOrders = useMemo(() => {
-    return orders.map(o => {
+    // If orders is undefined or null, default to empty array
+    const safeOrders = Array.isArray(orders) ? orders : [];
+
+    return safeOrders.map(o => {
+      // 1. Map DB columns to predictable keys
+      const rawDate = o.created_at || o.date || new Date().toISOString();
+
       return {
         ...o,
-        // Use the exact camelCase names from your DESCRIBE output
+        // Ensure these match the camelCase in your DB/Log
         itemId: o.itemId,
         userId: o.userId,
-        itemName: o.itemName || "Unknown Item",
+        itemName: (o.itemName || o.item_name || "Unknown Item").trim(),
         status: String(o.status || 'PENDING').toUpperCase().trim(),
-        // Ensure created_at is passed correctly to OrderAnalytics
-        created_at: o.created_at,
-        chartDate: o.created_at
+        created_at: rawDate,
+        chartDate: rawDate // Analytics specifically looks for this
       };
     });
   }, [orders]);

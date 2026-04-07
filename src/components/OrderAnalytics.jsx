@@ -13,27 +13,27 @@ import {
  * 🛠️ DATA PROCESSING LOGIC
  */
 const processOrderData = (orders) => {
-  console.log("Raw orders received in Analytics:", orders);
   const safeOrders = Array.isArray(orders) ? orders : [];
   const dailyCounts = {};
 
-  // 1. Generate keys for the last 7 days based on LOCAL time
+  // 1. Setup last 7 days
   for (let i = 6; i >= 0; i--) {
     const d = new Date();
     d.setDate(d.getDate() - i);
-    const key = d.toLocaleDateString('en-CA'); // Results in "YYYY-MM-DD"
+    const key = d.toLocaleDateString('en-CA');
     dailyCounts[key] = 0;
   }
 
-  // 2. Map orders to those keys
+  // 2. Map orders
   safeOrders.forEach(o => {
-    const dateSrc = o.created_at || o.date;
+    // Try every possible date field name
+    const dateSrc = o.created_at || o.chartDate || o.date;
     if (!dateSrc) return;
 
-    // Convert whatever the DB sends into a local YYYY-MM-DD string
     const orderDate = new Date(dateSrc);
     const orderKey = orderDate.toLocaleDateString('en-CA');
 
+    // If the date exists in our 7-day window, increment it
     if (Object.prototype.hasOwnProperty.call(dailyCounts, orderKey)) {
       dailyCounts[orderKey] += 1;
     }
@@ -44,10 +44,11 @@ const processOrderData = (orders) => {
     count: dailyCounts[key]
   }));
 
-
   return {
     chartData: formattedData,
-    hasData: true
+    // Change this: Only show "hasData" if there's actually a count > 0 
+    // OR keep it true if you want to see the empty chart grid
+    hasData: formattedData.length > 0
   };
 };
 

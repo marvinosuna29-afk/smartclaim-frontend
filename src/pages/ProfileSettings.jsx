@@ -96,11 +96,27 @@ export default function ProfileSettings() {
     e.preventDefault();
     if (passwords.next !== passwords.confirm) return notify('error', 'New passwords do not match.');
     if (passwords.next.length < 6) return notify('error', 'Password too short.');
+
+    // If they aren't linked to Discord, they can't change their password.
+    if (!user?.discord_id && !user?.is_verified) {
+      return notify('error', 'You must link a Discord account to change security settings.');
+    }
+
     setIsChangingPass(true);
-    const success = await requestOTP(user.email);
-    setIsChangingPass(false);
-    if (success) setOtpModal({ show: true, code: '', type: 'password' });
-    else notify('error', 'Could not send OTP.');
+    try {
+      const res = await axios.post('https://smartclaim-backend.onrender.com/api/auth/request-password-otp', {
+        userId: user.id
+      });
+
+      if (res.data.success) {
+        setOtpModal({ show: true, code: '', type: 'password_discord' });
+        notify('success', 'Security code sent to your Discord DMs!');
+      }
+    } catch (err) {
+      notify('error', 'Discord service unavailable. Try again later.');
+    } finally {
+      setIsChangingPass(false);
+    }
   };
 
   // --- UPDATED CONFIRM OTP ---
@@ -108,54 +124,38 @@ export default function ProfileSettings() {
     setIsVerifying(true);
     const cleanCode = otpModal.code.trim();
 
-    // --- 🎮 CASE 1: DISCORD VERIFICATION ---
-    if (otpModal.type === 'discord') {
-      try {
-        const res = await axios.post('https://smartclaim-backend.onrender.com/api/auth/discord/verify-code', {
-          userId: user.id,
-          code: cleanCode
-        });
+    try {
+      let endpoint = '';
+      let payload = { userId: user.id, code: cleanCode };
 
-        if (res.data.success) {
-          setOtpModal({ show: false, code: '', type: null });
-          notify('success', 'Discord Verified Successfully!');
-
-          // 🔥 CRITICAL: Update the global state so the UI badges flip to green
-          if (typeof refreshUser === 'function') {
-            await refreshUser();
-          }
-        }
-      } catch (err) {
-        setOtpModal(prev => ({ ...prev, code: '' })); // Clear the input on error
-        notify('error', err.response?.data?.message || 'Invalid Discord code.');
-      } finally {
-        setIsVerifying(false);
+      if (otpModal.type === 'discord') {
+        // For initial account linking
+        endpoint = 'https://smartclaim-backend.onrender.com/api/auth/discord/verify-code';
+      } else if (otpModal.type === 'password_discord') {
+        // For password changes
+        endpoint = 'https://smartclaim-backend.onrender.com/api/auth/reset-password-secure';
+        payload = { ...payload, otp: cleanCode, newPassword: passwords.next };
+      } else if (otpModal.type === 'profile_discord') {
+        // For profile updates (Name/General Info)
+        endpoint = 'https://smartclaim-backend.onrender.com/api/auth/verify-profile-update';
+        payload = { ...payload, full_name: formData.full_name };
       }
-      return;
-    }
 
-    // --- 📧 CASE 2: STANDARD EMAIL/PROFILE/PASSWORD ---
-    const result = await verifyOTP(cleanCode, {
-      newEmail: otpModal.type === 'profile' ? formData.email : null,
-      newPassword: otpModal.type === 'password' ? passwords.next : null,
-      full_name: formData.full_name
-    });
+      const res = await axios.post(endpoint, payload);
 
-    if (result.success) {
-      setOtpModal({ show: false, code: '', type: null });
-      setPasswords({ next: '', confirm: '' });
-      notify('success', 'Action Verified & Updated!');
+      if (res.data.success) {
+        setOtpModal({ show: false, code: '', type: null });
+        setPasswords({ next: '', confirm: '' });
+        notify('success', 'Identity Verified & Changes Applied!');
 
-      // Backup refresh to ensure ProfileSettings reflects the name/email changes
-      if (typeof refreshUser === 'function') {
-        await refreshUser();
+        if (typeof refreshUser === 'function') await refreshUser();
       }
-    } else {
+    } catch (err) {
       setOtpModal(prev => ({ ...prev, code: '' }));
-      notify('error', result.message || 'Incorrect code.');
+      notify('error', err.response?.data?.message || 'Invalid Discord security code.');
+    } finally {
+      setIsVerifying(false);
     }
-
-    setIsVerifying(false);
   };
 
   const handleUnlinkDiscord = async () => {

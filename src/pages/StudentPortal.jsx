@@ -106,20 +106,22 @@ export default function StudentPortal({ needsVerification, activeTab, myOrders: 
   };
 
   const handleReferenceSubmit = async (orderId) => {
+    // 🛡️ BLOCKER: Check if we are already uploading THIS specific order
+    if (uploadingId === orderId) return;
+
     const refNum = window.prompt("Enter your Payment Reference / Transaction Number:");
     if (!refNum || !refNum.trim()) return;
 
-    setUploadingId(orderId);
+    setUploadingId(orderId); // Lock the UI
     try {
       const response = await submitReceipt(orderId, refNum.trim());
       if (!(response && response.success)) {
-        alert(response?.message || "Submission failed. Check your connection.");
+        alert(response?.error || "Submission failed.");
       }
     } catch (err) {
-      console.error("Receipt Upload Error:", err);
-      alert("A critical error occurred during submission.");
+      console.error("Receipt Error:", err);
     } finally {
-      setUploadingId(null);
+      setUploadingId(null); // Unlock the UI
     }
   };
 
@@ -328,13 +330,13 @@ export default function StudentPortal({ needsVerification, activeTab, myOrders: 
                 {items.map(item => (
                   <div key={item.id} className="bg-white p-6 rounded-[3rem] border border-slate-100 shadow-sm flex flex-col hover:shadow-xl transition-all duration-500 group relative overflow-hidden">
                     {officeStatus === 'CLOSED' && <div className="absolute inset-0 z-10 bg-slate-50/40 backdrop-blur-[1px] cursor-not-allowed" />}
-                    
+
                     {/* 🖼️ ITEM IMAGE SECTION */}
                     <div className="relative w-full h-48 mb-6 overflow-hidden rounded-[2rem] bg-slate-50 border border-slate-100">
                       {item.image_url ? (
-                        <img 
-                          src={item.image_url} 
-                          alt={item.name} 
+                        <img
+                          src={item.image_url}
+                          alt={item.name}
                           className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
                         />
                       ) : (
@@ -427,8 +429,8 @@ export default function StudentPortal({ needsVerification, activeTab, myOrders: 
                 <p className="text-[10px] font-black text-emerald-400 uppercase tracking-[0.3em]">Authorized Collection</p>
                 <h3 className="text-3xl font-black uppercase text-white tracking-tighter leading-none">{selectedOrderForQR.item_name}</h3>
                 <p className="text-emerald-500/80 text-[9px] font-black uppercase tracking-[0.2em] flex items-center justify-center gap-2 mt-2">
-                   <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                   Dynamic Queue System Active
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  Dynamic Queue System Active
                 </p>
               </div>
             </div>

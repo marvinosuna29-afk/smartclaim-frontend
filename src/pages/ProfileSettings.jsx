@@ -78,18 +78,11 @@ export default function ProfileSettings() {
 
   const handleProfileUpdateTrigger = async (e) => {
     e.preventDefault();
-    if (formData.email !== user.email) {
-      setIsSavingProfile(true);
-      const success = await requestOTP(formData.email);
-      setIsSavingProfile(false);
-      if (success) setOtpModal({ show: true, code: '', type: 'profile' });
-      else notify('error', 'Failed to send verification code.');
-    } else {
-      setIsSavingProfile(true);
-      const result = await updateProfile(formData);
-      setIsSavingProfile(false);
-      if (result.success) notify('success', 'Profile updated!');
-    }
+    setIsSavingProfile(true);
+    // Just update the profile directly without a separate OTP step
+    const result = await updateProfile(formData);
+    setIsSavingProfile(false);
+    if (result.success) notify('success', 'Profile updated!');
   };
 
   const handlePasswordUpdateTrigger = async (e) => {
@@ -349,7 +342,9 @@ export default function ProfileSettings() {
             </h3>
             <form onSubmit={handlePasswordUpdateTrigger} className="space-y-6">
               <div className="space-y-4">
-                <p className="px-4 text-[10px] font-bold text-slate-400 uppercase tracking-tight italic">Changing password requires email verification.</p>
+                <p className="px-4 text-[10px] font-bold text-slate-400 uppercase tracking-tight italic">
+                  Changing password requires Discord verification.
+                </p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <input
                     type="password"
@@ -399,8 +394,8 @@ export default function ProfileSettings() {
               </div>
               <p className="text-[10px] font-bold text-white/30 leading-relaxed italic">
                 {user?.is_verified
-                  ? "Your account is fully verified. You will receive automated claim receipts via email and Discord."
-                  : "Verification required. Please verify your email or link your Discord to enable all security features."}
+                  ? "Your account is fully verified. You will receive automated claim receipts via Discord."
+                  : "Verification required. Please link and verify your Discord to enable all security features."}
               </p>
             </div>
           </div>

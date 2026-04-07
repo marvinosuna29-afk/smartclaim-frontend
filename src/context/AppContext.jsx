@@ -322,9 +322,19 @@ export const AppProvider = ({ children }) => {
       },
       printReceipt: async (order) => {
         if (!order) return;
-        // We don't need to fetch anything here anymore!
-        // The backend /api/orders/scan-claim already calls sendToPrinterWebhook.
-        console.log("🖨️ Backend is handling the Printer & E-Receipt relay.");
+
+        console.log("🔄 Triggering Manual Receipt Sync...");
+
+        const res = await api('/api/orders/print-manual', 'POST', {
+          orderId: order.id,
+          adminId: stableUserId // This uses your logged-in Admin ID
+        });
+
+        if (res.ok) {
+          console.log("✅ Print signal sent to Discord!");
+        } else {
+          console.error("❌ Print signal failed:", res.data?.message);
+        }
       },
       deleteAnnouncement: async (id) => {
         const r = await api(`/api/announcements/${id}?adminId=${stableUserId}`, 'DELETE');

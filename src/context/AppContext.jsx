@@ -66,15 +66,13 @@ export const AppProvider = ({ children }) => {
 
   const refreshData = useCallback(async () => {
     if (!stableUserId) return;
-    setLoading(true);
-
+    // We removed setLoading(true) from here to stop the flickering
     try {
       let fetchedUsers = [];
       if (stableRole === 'admin') {
         const uRes = await api(`/api/admin/users?adminId=${stableUserId}`);
         if (uRes.ok && Array.isArray(uRes.data)) {
           fetchedUsers = uRes.data.map(normalizeUser);
-          // Keep the check for users to prevent unnecessary re-renders
           setUsers(prev => JSON.stringify(prev) === JSON.stringify(fetchedUsers) ? prev : fetchedUsers);
         }
       }
@@ -88,32 +86,26 @@ export const AppProvider = ({ children }) => {
       if (itemsRes.ok) setItems(itemsRes.data);
       if (annRes.ok) setAnnouncements(annRes.data);
 
-      // 🚀 FIXED ORDER LOGIC: Force state to match Database exactly
       if (ordersRes.ok) {
         const rawOrders = Array.isArray(ordersRes.data) ? ordersRes.data : [];
-
         if (rawOrders.length === 0) {
-          // If the DB is empty, we force the state to be empty immediately.
           setOrders([]);
         } else {
           const enriched = rawOrders.map(order => {
             const student = fetchedUsers.find(u => String(u.id) === String(order.user_id || order.userId));
             return {
               ...order,
-              status: (order.status || 'PENDING').toUpperCase().trim(), // Sanitize status
+              status: (order.status || 'PENDING').toUpperCase().trim(),
               full_name: order.full_name || student?.name || "Guest Student"
             };
           });
-
-          // We update orders directly to bypass any "stringify" glitches
           setOrders(enriched);
         }
       }
     } catch (err) {
       console.error("Refresh Failure:", err);
     } finally {
-      if (!silent) setTimeout(() => setLoading(false), 50);
-      else setLoading(false); // Just in case, ensure loading is false
+      setLoading(false);
     }
   }, [stableUserId, stableRole, normalizeUser, api]);
 
@@ -393,7 +385,8 @@ export const AppProvider = ({ children }) => {
     if (!stableUserId) return;
     const heartbeat = setInterval(() => {
       console.log("💓 Background Syncing with Aiven...");
-      refreshData(true);
+      // Remove the 'true' here—just call the function directly
+      refreshData();
     }, 30000);
     return () => clearInterval(heartbeat);
   }, [stableUserId, refreshData]);

@@ -112,8 +112,8 @@ export const AppProvider = ({ children }) => {
     } catch (err) {
       console.error("Refresh Failure:", err);
     } finally {
-      // Keep a tiny delay to prevent UI flickering
-      setTimeout(() => setLoading(false), 50);
+      if (!silent) setTimeout(() => setLoading(false), 50);
+      else setLoading(false); // Just in case, ensure loading is false
     }
   }, [stableUserId, stableRole, normalizeUser, api]);
 
@@ -393,7 +393,7 @@ export const AppProvider = ({ children }) => {
     if (!stableUserId) return;
     const heartbeat = setInterval(() => {
       console.log("💓 Background Syncing with Aiven...");
-      refreshData();
+      refreshData(true);
     }, 30000);
     return () => clearInterval(heartbeat);
   }, [stableUserId, refreshData]);

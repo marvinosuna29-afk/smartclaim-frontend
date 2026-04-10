@@ -331,12 +331,18 @@ export const AppProvider = ({ children }) => {
       },
       addAnnouncement: async (annData) => {
         const r = await api('/api/announcements', 'POST', { ...annData, adminId: stableUserId });
+
         if (r.ok) {
-          // Update the local list so the new announcement shows up immediately
-          setAnnouncements(prev => [r.data, ...prev]);
+          // 🚀 THE FIX: Extract the new announcement from the response
+          // Your backend returns { success: true, announcement: ann }
+          const newAnn = r.data.announcement || r.data;
+
+          // Add it to the top of the list immediately
+          setAnnouncements(prev => [newAnn, ...prev]);
+
           return { success: true };
         }
-        return { success: false, message: r.data?.message || "Failed to add announcement" };
+        return { success: false, message: r.data?.message };
       },
       deleteAnnouncement: async (id) => {
         const r = await api(`/api/announcements/${id}?adminId=${stableUserId}`, 'DELETE');

@@ -1,21 +1,21 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { 
-  Megaphone, Send, Clock, Trash2, Hourglass, Loader2, 
+import {
+  Megaphone, Send, Clock, Trash2, Hourglass, Loader2,
   AlertCircle, Zap, Power, ShieldAlert
 } from 'lucide-react';
 
 export default function AnnouncementManager() {
-  const { 
-    announcements = [], 
-    addAnnouncement, 
+  const {
+    announcements = [],
+    addAnnouncement,
     deleteAnnouncement,
-    officeStatus, 
+    officeStatus,
     toggleOfficeStatus // This is the master function that checks the DB password
   } = useApp();
 
   const [msg, setMsg] = useState('');
-  const [duration, setDuration] = useState('24'); 
+  const [duration, setDuration] = useState('24');
   const [isSending, setIsSending] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
 
@@ -25,10 +25,10 @@ export default function AnnouncementManager() {
   // --- SYNCED AUTHENTICATION HANDLER ---
   const handleToggle = async () => {
     const nextStatus = currentStatus === 'OPEN' ? 'CLOSED' : 'OPEN';
-    
+
     // This prompt captures the password to be verified by your backend
     const password = prompt(`Enter Admin Password to set system to ${nextStatus}:`);
-    
+
     if (!password) return; // Exit if they cancel or leave it blank
 
     setIsUpdatingStatus(true);
@@ -36,7 +36,7 @@ export default function AnnouncementManager() {
       // We pass the password directly to the context function. 
       // The "Sync" happens because this hits the same API endpoint as the Dashboard.
       const result = await toggleOfficeStatus(nextStatus, password);
-      
+
       if (!result.success) {
         alert(result.error || "Authentication failed or server error.");
       }
@@ -52,13 +52,20 @@ export default function AnnouncementManager() {
     e.preventDefault();
     if (!msg.trim()) return;
     setIsSending(true);
-    
+
     const expiryDate = new Date();
     expiryDate.setHours(expiryDate.getHours() + parseInt(duration));
     const expires_at = expiryDate.toISOString().slice(0, 19).replace('T', ' ');
 
     try {
-      const result = await addAnnouncement(msg, expires_at);
+      // Pack the strings into an object the backend recognizes
+      const result = await addAnnouncement({
+        title: 'Broadcast',
+        content: msg,          // Backend specifically needs the key "content"
+        type: 'info',
+        expires_at: expires_at
+      });
+
       if (result?.success) setMsg('');
     } catch (err) {
       console.error("Broadcast failed:", err);
@@ -74,7 +81,7 @@ export default function AnnouncementManager() {
 
   return (
     <div className="p-4 md:p-8 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 text-left">
-      
+
       {/* --- HEADER --- */}
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -85,14 +92,13 @@ export default function AnnouncementManager() {
         </div>
 
         {/* --- SYNCED TOGGLE BUTTON --- */}
-        <button 
+        <button
           onClick={handleToggle}
           disabled={isUpdatingStatus}
-          className={`flex items-center gap-4 px-6 py-3 rounded-3xl border-2 transition-all duration-500 shadow-lg active:scale-95 ${
-            currentStatus === 'OPEN' 
-            ? 'bg-white border-emerald-100 text-emerald-700' 
-            : 'bg-red-50 border-red-200 text-red-600 shadow-red-200/50'
-          }`}
+          className={`flex items-center gap-4 px-6 py-3 rounded-3xl border-2 transition-all duration-500 shadow-lg active:scale-95 ${currentStatus === 'OPEN'
+              ? 'bg-white border-emerald-100 text-emerald-700'
+              : 'bg-red-50 border-red-200 text-red-600 shadow-red-200/50'
+            }`}
         >
           <div className={`p-2 rounded-xl transition-colors duration-500 ${currentStatus === 'OPEN' ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white animate-pulse'}`}>
             {isUpdatingStatus ? <Loader2 size={18} className="animate-spin" /> : <Power size={18} />}
@@ -107,7 +113,7 @@ export default function AnnouncementManager() {
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        
+
         {/* --- COMPOSE SECTION --- */}
         <section className="lg:col-span-4 space-y-6">
           {/* Visual Alert for Closed State */}
@@ -130,9 +136,9 @@ export default function AnnouncementManager() {
                 <p className="text-[10px] font-bold text-slate-400 uppercase text-left">Live Broadcast</p>
               </div>
             </div>
-            
+
             <form onSubmit={handlePost} className="space-y-6">
-              <textarea 
+              <textarea
                 value={msg}
                 onChange={(e) => setMsg(e.target.value)}
                 placeholder="Type your announcement..."
@@ -157,11 +163,11 @@ export default function AnnouncementManager() {
                 </div>
               </div>
 
-              <button 
+              <button
                 disabled={isSending || !msg.trim()}
                 className="w-full bg-emerald-950 text-white font-black py-5 rounded-[1.5rem] hover:bg-black disabled:opacity-30 transition-all flex items-center justify-center gap-3 shadow-xl shadow-emerald-950/20"
               >
-                {isSending ? <Loader2 className="animate-spin" size={20}/> : <><Send size={18}/> Deploy to Feed</>}
+                {isSending ? <Loader2 className="animate-spin" size={20} /> : <><Send size={18} /> Deploy to Feed</>}
               </button>
             </form>
           </div>
@@ -189,7 +195,7 @@ export default function AnnouncementManager() {
                           <Clock size={10} /> Active
                         </div>
                         <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest truncate">
-                          {new Date(ann.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                          {new Date(ann.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </p>
                       </div>
                       <p className="text-xl font-bold text-slate-800 leading-snug tracking-tight break-words italic">
@@ -197,7 +203,7 @@ export default function AnnouncementManager() {
                       </p>
                     </div>
 
-                    <button 
+                    <button
                       onClick={() => handleDelete(ann.id)}
                       className="shrink-0 opacity-0 group-hover:opacity-100 bg-red-50 text-red-400 hover:text-red-600 hover:bg-red-100 p-4 rounded-2xl transition-all shadow-sm active:scale-90 self-start mt-1"
                     >
@@ -207,8 +213,8 @@ export default function AnnouncementManager() {
                 ))
               ) : (
                 <div className="py-40 text-center">
-                   <Megaphone className="mx-auto text-slate-200 mb-4" size={48} />
-                   <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">No active broadcasts</p>
+                  <Megaphone className="mx-auto text-slate-200 mb-4" size={48} />
+                  <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">No active broadcasts</p>
                 </div>
               )}
             </div>

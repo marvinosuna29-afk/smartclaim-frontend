@@ -329,6 +329,15 @@ export const AppProvider = ({ children }) => {
           console.error("❌ Print signal failed:", res.data?.message);
         }
       },
+      addAnnouncement: async (annData) => {
+        const r = await api('/api/announcements', 'POST', { ...annData, adminId: stableUserId });
+        if (r.ok) {
+          // Update the local list so the new announcement shows up immediately
+          setAnnouncements(prev => [r.data, ...prev]);
+          return { success: true };
+        }
+        return { success: false, message: r.data?.message || "Failed to add announcement" };
+      },
       deleteAnnouncement: async (id) => {
         const r = await api(`/api/announcements/${id}?adminId=${stableUserId}`, 'DELETE');
         if (r.ok) setAnnouncements(prev => prev.filter(a => a.id !== id));

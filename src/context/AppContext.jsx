@@ -1,4 +1,4 @@
-// Version 1.2.3(Rollback further) - Fixed Cross-Device Sync & Immediate Submission
+// Version 1.2.3 Rollback
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { io } from 'socket.io-client';
 

@@ -181,6 +181,19 @@ export const AppProvider = ({ children }) => {
         setUserState(null);
         window.location.href = '/login';
       },
+      updateProfile: async (formData) => {
+        const r = await api('/api/users/update-profile', 'PUT', {
+          user_id: stableUserId,
+          full_name: formData.full_name,
+          email: formData.email
+        });
+
+        if (r.ok) {
+          await refreshUser(); // This updates the global user state with the new name
+          return { success: true };
+        }
+        return { success: false, message: r.data?.message || "Update failed" };
+      },
       requestOTP: async (targetEmail) => {
         return await api('/api/auth/request-otp', 'POST', { email: targetEmail, userId: stableUserId });
       },

@@ -182,7 +182,7 @@ export const AppProvider = ({ children }) => {
         window.location.href = '/login';
       },
       updateProfile: async (formData) => {
-        const r = await api('/api/users/update-profile', 'PUT', {
+        const r = await api('/api/users/update-profile', 'PATCH', {
           user_id: stableUserId,
           full_name: formData.full_name,
           email: formData.email

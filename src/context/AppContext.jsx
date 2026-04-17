@@ -183,14 +183,20 @@ export const AppProvider = ({ children }) => {
       },
       updateProfile: async (formData) => {
         const r = await api('/api/users/update-profile', 'PATCH', {
-          // CHANGE THIS: Match the backend's 'userId' variable name
           userId: stableUserId,
           full_name: formData.full_name,
           email: formData.email
         });
 
         if (r.ok) {
+          // 1. Get the fresh data from the server
           await refreshUser();
+
+          // 2. CRITICAL: Update LocalStorage so it survives a reload
+          // We fetch the updated user state after refreshUser finishes
+          const updatedUser = { ...user, full_name: formData.full_name, email: formData.email };
+          localStorage.setItem('app_user', JSON.stringify(updatedUser));
+
           return { success: true };
         }
         return { success: false, message: r.data?.message || "Update failed" };

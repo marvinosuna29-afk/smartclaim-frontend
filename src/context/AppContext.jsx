@@ -183,13 +183,14 @@ export const AppProvider = ({ children }) => {
       },
       updateProfile: async (formData) => {
         const r = await api('/api/users/update-profile', 'PATCH', {
-          user_id: stableUserId,
+          // CHANGE THIS: Match the backend's 'userId' variable name
+          userId: stableUserId,
           full_name: formData.full_name,
           email: formData.email
         });
 
         if (r.ok) {
-          await refreshUser(); // This updates the global user state with the new name
+          await refreshUser();
           return { success: true };
         }
         return { success: false, message: r.data?.message || "Update failed" };
